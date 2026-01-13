@@ -15,6 +15,7 @@ from lead_cleaner.phase1_deterministic.runner import Phase1Runner
 from lead_cleaner.phase2_semantic.runner import Phase2Runner
 from lead_cleaner.phase3_merge.runner import Phase3Runner
 from lead_cleaner.exceptions import LeadCleanerError, VerificationError
+from lead_cleaner.core.security import scan_and_secure
 
 class Orchestrator:
     def __init__(self):
@@ -28,25 +29,29 @@ class Orchestrator:
             # 1. System Check
             self.monitor.log_baseline()
             
-            # 2. Phase 0: Validate Input
+            # 2. Phase 0: Security Scan
+            self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 0: Security Scan")
+            sanitized_csv = scan_and_secure(input_csv, self.logger)
+            
+            # 3. Phase 0: Validate Input (using sanitized file)
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 0: Validation")
             validator = DataValidator(self.logger)
-            df = validator.validate_csv(input_csv)
+            df = validator.validate_csv(sanitized_csv)
             
-            # 3. Phase 1: Deterministic
+            # 4. Phase 1: Deterministic
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 1: Deterministic")
             p1_runner = Phase1Runner(self.logger, self.run_id)
             rows = p1_runner.process(df)
             
-            # 4. CRITICAL GATE: Unit Tests
+            # 5. CRITICAL GATE: Unit Tests
             self._run_critical_gate_tests()
             
-            # 5. Phase 2: Semantic (AI)
+            # 6. Phase 2: Semantic (AI)
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 2: Semantic")
             p2_runner = Phase2Runner(self.logger, self.run_id)
             rows = p2_runner.process(rows)
             
-            # 6. Phase 3: Merge & Verify
+            # 7. Phase 3: Merge & Verify
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 3: Merge/Verify")
             p3_runner = Phase3Runner(self.logger, self.run_id)
             p3_runner.process(rows, output_dir)
