@@ -120,6 +120,9 @@ class Phase2Runner:
                 response_str = self.llm.generate_response(full_prompt)
                 
                 # Parse JSON (Robust)
+                cleaned_data = None
+                parse_error = None
+                
                 try:
                     # 1. Try direct parse
                     cleaned_data = json.loads(response_str)
@@ -131,39 +134,49 @@ class Phase2Runner:
                          json_match = re.search(r"```\s*(\{.*?\})\s*```", response_str, re.DOTALL)
                     
                     if json_match:
-                        cleaned_data = json.loads(json_match.group(1))
+                        try:
+                            cleaned_data = json.loads(json_match.group(1))
+                        except json.JSONDecodeError as e:
+                            parse_error = e
                     else:
                         # 3. Try finding first { and last }
                         start = response_str.find("{")
                         end = response_str.rfind("}")
                         if start != -1 and end != -1:
-                             cleaned_data = json.loads(response_str[start:end+1])
+                            try:
+                                cleaned_data = json.loads(response_str[start:end+1])
+                            except json.JSONDecodeError as e:
+                                parse_error = e
                         else:
-                             raise
-                    
-                try:
-                    # Validate schema roughly (or assume LLM did okay, we rely on types)
-                    # Validate schema roughly (or assume LLM did okay, we rely on types)
-                    if not isinstance(cleaned_data, dict):
-                        raise ValueError("LLM returned non-dict")
-                        
-                    row["clean_data"].update(cleaned_data)
-                    row["status"] = RowStatus.CLEAN
-                    row["confidence_score"] = 0.8 # Arbitrary for now, could ask LLM for confidence
-                    
-                    self.logger.log_event(
-                        PHASE_2_SEMANTIC, 
-                        "ROW_RESOLVED", 
-                        row_id=row["row_id"],
-                        confidence=row["confidence_score"]
-                    )
-                    
-                except json.JSONDecodeError:
+                            parse_error = json.JSONDecodeError("No JSON found", response_str, 0)
+                
+                # Handle parse failure
+                if parse_error or cleaned_data is None:
                     row["status"] = RowStatus.REJECTED
                     row["failure_reason"] = FailureReason.INVALID_FORMAT
                     self.logger.log_event(PHASE_2_SEMANTIC, "JSON_PARSE_ERROR", row_id=row["row_id"], reason=response_str)
+                    continue
+                    
+                # Validate schema roughly
+                if not isinstance(cleaned_data, dict):
+                    row["status"] = RowStatus.REJECTED
+                    row["failure_reason"] = FailureReason.INVALID_FORMAT
+                    self.logger.log_event(PHASE_2_SEMANTIC, "SCHEMA_ERROR", row_id=row["row_id"], reason="LLM returned non-dict")
+                    continue
+                    
+                row["clean_data"].update(cleaned_data)
+                row["status"] = RowStatus.CLEAN
+                row["confidence_score"] = 0.8 # Arbitrary for now, could ask LLM for confidence
+                
+                self.logger.log_event(
+                    PHASE_2_SEMANTIC, 
+                    "ROW_RESOLVED", 
+                    row_id=row["row_id"],
+                    confidence=row["confidence_score"]
+                )
                     
             except Exception as e:
                 row["status"] = RowStatus.REJECTED
                 row["failure_reason"] = FailureReason.UNKNOWN
                 self.logger.log_error(PHASE_2_SEMANTIC, "ROW_ERROR", e)
+

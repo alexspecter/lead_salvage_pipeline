@@ -1,3 +1,4 @@
 pandas
 mlx-lm
 psutil
+python-docx

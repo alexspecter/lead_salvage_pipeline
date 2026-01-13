@@ -12,8 +12,10 @@ class TestPhase2(unittest.TestCase):
     @patch("lead_cleaner.phase2_semantic.model.LocalLLM.load_model")
     @patch("lead_cleaner.phase2_semantic.model.LocalLLM.generate_response")
     @patch("lead_cleaner.phase2_semantic.memory_guard.MemoryGuard.check_memory")
-    def test_runner_flow_success(self, mock_mem, mock_gen, mock_load):
-        # Setup Mocks
+    @patch("lead_cleaner.phase2_semantic.memory_guard.MemoryGuard.force_gc")
+    def test_runner_flow_success(self, mock_gc, mock_mem, mock_gen, mock_load):
+        # Setup Mocks - check_memory now returns usage percentage
+        mock_mem.return_value = 0.50  # 50% usage
         mock_gen.return_value = '{"email": "clean@example.com", "phone": "123-456-7890"}'
         
         rows = [
@@ -28,13 +30,16 @@ class TestPhase2(unittest.TestCase):
         self.assertEqual(r1["status"], RowStatus.CLEAN)
         self.assertEqual(r1["clean_data"]["email"], "clean@example.com")
         
-        # Verify Row 2 touched? No
+        # Verify Row 2 untouched
         r2 = next(r for r in processed if r["row_id"] == "2")
         self.assertEqual(r2["status"], RowStatus.CLEAN)
 
     @patch("lead_cleaner.phase2_semantic.model.LocalLLM.load_model")
     @patch("lead_cleaner.phase2_semantic.model.LocalLLM.generate_response")
-    def test_runner_json_fail(self, mock_gen, mock_load):
+    @patch("lead_cleaner.phase2_semantic.memory_guard.MemoryGuard.check_memory")
+    @patch("lead_cleaner.phase2_semantic.memory_guard.MemoryGuard.force_gc")
+    def test_runner_json_fail(self, mock_gc, mock_mem, mock_gen, mock_load):
+        mock_mem.return_value = 0.50  # 50% usage
         mock_gen.return_value = "NOT JSON"
         
         rows = [
