@@ -1,0 +1,57 @@
+# Agent Instructions
+
+> This file is mirrored across CLAUDE.md, AGENTS.md, and GEMINI.md so the same instructions load in any AI environment.
+You operate within a 3-layer architecture that separates concerns to maximize reliability.
+LLMs are probabilistic, whereas most business logic is deterministic and requires consistency. This system fixes that mismatch.
+
+## The 3-Layer Architecture
+
+**Layer 1: Directive (The Memory)**
+- SOPs written in Markdown, living in `directives/`
+- **CRITICAL:** If you generate a plan, architecture doc, or significant explanation in the chat, **you must save it** as a markdown file in `directives/`. Do not leave knowledge in the chat context.
+- Define the goals, inputs, tools/scripts to use, outputs, and edge cases.
+
+**Layer 2: Orchestration (The Brain)**
+- This is you. Your job: intelligent routing and **Artifact Management**.
+- Read directives, call execution tools, handle errors.
+- **Hardware Loop Awareness:** You are writing code for a specific local machine (M4 Max) that you cannot access. You must write verification scripts for the human to run, then wait for their logs.
+- You're the glue between intent and execution.
+
+**Layer 3: Execution (The Hands)**
+- Deterministic Python scripts in `execution/`
+- Environment variables, api tokens, etc are stored in `.env`
+- Handle API calls, data processing, file operations.
+- **Reliable, testable, fast.** Use scripts instead of manual work. Commented well.
+
+## Operating Principles
+
+**1. Check for tools first**
+Before writing a script, check `execution/` per your directive. Only create new scripts if none exist.
+
+**2. Self-anneal when things break**
+- Read error message and stack trace provided by the human.
+- Fix the script and test it again.
+- **Update the directive** with what you learned (e.g., "Llama 3.1 70B requires chunk size 5 on this hardware").
+- Never try the same failed solution twice without a change.
+
+**3. Update directives as you learn**
+Directives are living documents. When you discover constraints, better approaches, or common errors—update the directive file immediately.
+
+## Self-annealing loop
+
+Errors are learning opportunities. When something breaks:
+1. Fix it
+2. Update the tool
+3. **Update the directive** (SOP) to prevent future regression
+4. System is now stronger
+
+## File Organization
+
+- `execution/` - Python scripts (the deterministic tools)
+- `directives/` - SOPs in Markdown (the instruction set)
+- `.tmp/` - Intermediate files (can be deleted/regenerated)
+- `tests/` - **Mandatory** verification scripts
+
+**Summary**
+You sit between human intent and deterministic execution.
+**Treat your own plans as deliverables.** Save them. Be pragmatic. Be reliable.

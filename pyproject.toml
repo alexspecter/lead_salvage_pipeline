@@ -1,0 +1,10 @@
+[project]
+name = "lead_cleaner"
+version = "0.1.0"
+description = "Deterministic data cleaning pipeline with specific memory guards and LLM routing"
+requires-python = ">=3.9"
+dependencies = [
+    "pandas",
+    "mlx-lm",
+    "psutil",
+]

@@ -1,0 +1,3 @@
+pandas
+mlx-lm
+psutil
