@@ -1,25 +1,55 @@
+"""
+Phase 1 Runner - Deterministic Processing
+
+Handles:
+1. Dynamic field detection (Header-based + Content-based Inference)
+2. Normalization of known field types
+3. Missing value handling
+4. Deduplication
+5. Routing (CLEAN vs AI_REQUIRED)
+"""
+
 import pandas as pd
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from lead_cleaner.types import LeadRow, RowStatus, ProcessingStatus
 from lead_cleaner.logging.logger import PipelineLogger
 from lead_cleaner.utils.uuid import generate_row_id
-from lead_cleaner.constants import *
+from lead_cleaner.constants import (
+    PHASE_1_DETERMINISTIC,
+    FIELD_Email, FIELD_Phone, FIELD_FirstName, FIELD_LastName,
+    FIELD_Date, FIELD_JobTitle, FIELD_Company,
+    FIELD_TYPE_PATTERNS,
+)
+from lead_cleaner.config import PRESERVE_ALL_FIELDS, NORMALIZE_KNOWN_FIELDS_ONLY
 from lead_cleaner.phase1_deterministic.normalizers import emails, phones, names, dates, job_titles
 from lead_cleaner.phase1_deterministic.deduplication import detect_duplicates
 from lead_cleaner.phase1_deterministic.routing import route_row
+from lead_cleaner.phase1_deterministic.missing_values import sanitize_value, is_missing
+from lead_cleaner.phase1_deterministic.type_inference import infer_column_type, parse_currency
+
 
 class Phase1Runner:
     def __init__(self, logger: PipelineLogger, run_id: str):
         self.logger = logger
         self.run_id = run_id
+        # Map: lowercase_col_name -> detected_type
+        self._field_type_cache: Dict[str, Optional[str]] = {}
 
     def process(self, df: pd.DataFrame) -> List[LeadRow]:
         self.logger.log_event(PHASE_1_DETERMINISTIC, "START", reason=f"Processing {len(df)} rows")
         
+        # 1. Detect field types (Header + Content Inference)
+        self._field_type_cache = self._detect_field_types(df)
+        self.logger.log_event(
+            PHASE_1_DETERMINISTIC, 
+            "FIELD_MAPPING", 
+            reason=f"Detected mappings: {self._field_type_cache}"
+        )
+        
         rows: List[LeadRow] = []
         
-        # 1. Initialize Rows
+        # 2. Initialize Rows
         for _, raw_row in df.iterrows():
             row_id = generate_row_id()
             row_data = raw_row.to_dict()
@@ -29,7 +59,7 @@ class Phase1Runner:
                 "run_id": self.run_id,
                 "raw_data": row_data,
                 "clean_data": {},
-                "status": RowStatus.AI_REQUIRED, # Default to AI until proven Clean
+                "status": RowStatus.AI_REQUIRED,  # Default to AI until proven Clean
                 "failure_reason": None,
                 "confidence_score": 0.0,
                 "is_duplicate": False,
@@ -38,16 +68,29 @@ class Phase1Runner:
             }
             rows.append(lead_row)
             
-        # 2. Normalize
+        # 3. Normalize (with dynamic field handling)
         for row in rows:
             self._normalize_row(row)
             
-        # 3. Deduplicate
+        # 4. Deduplicate (uses configurable strategy)
         rows = detect_duplicates(rows, self.logger)
         
-        # 4. Score & Route
+        # 5. Score & Route
+        # Determine expected fields from schema (field_type_cache)
+        # If we detected an 'email' field in the schema, we expect rows to have it.
+        expected_fields = {
+            FIELD_Email: any(t == FIELD_Email for t in self._field_type_cache.values()),
+            FIELD_Phone: any(t == FIELD_Phone for t in self._field_type_cache.values())
+        }
+        
+        self.logger.log_event(
+            PHASE_1_DETERMINISTIC, 
+            "SCHEMA_EXPECTATIONS", 
+            reason=f"Expected Fields: {expected_fields}"
+        )
+        
         for row in rows:
-            route_row(row)
+            route_row(row, expected_fields)
             self.logger.log_event(
                 PHASE_1_DETERMINISTIC, 
                 "ROW_PROCESSED", 
@@ -59,50 +102,149 @@ class Phase1Runner:
         self.logger.log_event(PHASE_1_DETERMINISTIC, "COMPLETE")
         return rows
 
+    def _detect_field_types(self, df: pd.DataFrame) -> Dict[str, Optional[str]]:
+        """
+        Maps input column names to known field types using:
+        1. Header name matching
+        2. Content-based inference (if header match fails)
+        
+        Returns a dict where:
+        - key = original column name (lowercase)
+        - value = detected type (email, phone, date, currency, etc.) or None
+        """
+        mapping = {}
+        
+        for col in df.columns:
+            col_lower = str(col).lower().strip()
+            detected_type = None
+            
+            # A. Header Pattern Matching
+            for field_type, patterns in FIELD_TYPE_PATTERNS.items():
+                if col_lower in patterns:
+                    detected_type = field_type
+                    break
+            
+            # B. Content-Based Inference (if no header match)
+            if not detected_type:
+                inferred = infer_column_type(df[col])
+                
+                # SAFETY: Prevent IDs from being inferred as Phone numbers
+                # IDs often look like phone numbers (digits) but shouldn't be formatted
+                if inferred == FIELD_Phone and ("id" in col_lower or "code" in col_lower):
+                    inferred = None
+                    
+                if inferred:
+                    detected_type = inferred
+            
+            mapping[col_lower] = detected_type
+        
+        return mapping
+
     def _normalize_row(self, row: LeadRow):
+        """
+        Normalizes a row with dynamic field handling.
+        
+        1. Preserves ALL fields from raw_data (with sanitization)
+        2. Applies specialized normalizers to detected field types
+        3. Handles missing values appropriately
+        4. Writes output:
+           - Critical fields (Email, Phone) -> Canonical keys (for dedupe)
+           - Generic types (Date, Currency) -> Original keys (normalized)
+        """
         raw = row["raw_data"]
         clean = {}
         details = {}
         
-        # Apply normalizers
-        # Email
-        res_email = emails.normalize_email(raw.get(FIELD_Email))
-        details[FIELD_Email] = res_email
-        if res_email["normalized_value"]:
-            clean[FIELD_Email] = res_email["normalized_value"]
+        # STEP 1: Preserve all fields with basic sanitization
+        # We start by initializing clean_data with sanitized raw values
+        if PRESERVE_ALL_FIELDS:
+            for field_name, value in raw.items():
+                field_lower = field_name.lower().strip()
+                # Apply basic sanitization (handles missing values logic)
+                clean[field_lower] = sanitize_value(value, field_lower)
+        
+        # STEP 2: Apply specialized normalizers to detected field types
+        for field_name, value in raw.items():
+            field_lower = field_name.lower().strip()
+            detected_type = self._field_type_cache.get(field_lower)
             
-        # Phone
-        res_phone = phones.normalize_phone(raw.get(FIELD_Phone))
-        details[FIELD_Phone] = res_phone
-        if res_phone["normalized_value"]:
-            clean[FIELD_Phone] = res_phone["normalized_value"]
-            
-        # Names
-        res_fname = names.normalize_name(raw.get(FIELD_FirstName))
-        details[FIELD_FirstName] = res_fname
-        if res_fname["normalized_value"]:
-            clean[FIELD_FirstName] = res_fname["normalized_value"]
-            
-        res_lname = names.normalize_name(raw.get(FIELD_LastName))
-        details[FIELD_LastName] = res_lname
-        if res_lname["normalized_value"]:
-            clean[FIELD_LastName] = res_lname["normalized_value"]
-            
-        # Date
-        res_date = dates.normalize_date(raw.get(FIELD_Date))
-        details[FIELD_Date] = res_date
-        if res_date["normalized_value"]:
-            clean[FIELD_Date] = res_date["normalized_value"]
-            
-        # Job
-        res_job = job_titles.normalize_job_title(raw.get(FIELD_JobTitle))
-        details[FIELD_JobTitle] = res_job
-        if res_job["normalized_value"]:
-            clean[FIELD_JobTitle] = res_job["normalized_value"]
-            
-        # Company (Pass through + basic clean)
-        if raw.get(FIELD_Company):
-             clean[FIELD_Company] = str(raw.get(FIELD_Company)).strip()
-             
+            if detected_type and (not NORMALIZE_KNOWN_FIELDS_ONLY or detected_type):
+                result = self._apply_normalizer(detected_type, value, field_lower)
+                
+                if result:
+                    details[field_name] = result  # Store under original name in details
+                    
+                    norm_val = result.get("normalized_value")
+                    
+                    if norm_val is not None:
+                        # LOGIC FOR WRITING TO CLEAN DATA:
+                        
+                        # 1. Always update the original field (in-place improvement)
+                        #    This ensures "Joined" becomes "2004-07-01", "Wage" becomes 100000.0
+                        clean[field_lower] = norm_val
+                        
+                        # 2. If it's a Critical Canonical Field (Email, Phone)
+                        #    Also map to the canonical key for deduplication & routing support
+                        if detected_type in {FIELD_Email, FIELD_Phone}:
+                            clean[detected_type] = norm_val
+                            
+                        # 3. For First/Last names, we also want canonical mapping if possible
+                        #    But be careful not to overwrite if we have multiple name fields
+                        #    Assuming standard dataset logic for now.
+                        if detected_type in {FIELD_FirstName, FIELD_LastName}:
+                            clean[detected_type] = norm_val
+
         row["clean_data"] = clean
         row["validation_details"] = details
+
+    def _apply_normalizer(
+        self, 
+        field_type: str, 
+        value: Any, 
+        original_field: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Applies the appropriate normalizer based on field type.
+        """
+        # Skip if value is missing (already handled)
+        if is_missing(value):
+            return {
+                "normalized_value": None,
+                "field_status": "MISSING",
+                "reason": "Value was missing or empty"
+            }
+        
+        try:
+            if field_type == FIELD_Email:
+                return emails.normalize_email(value)
+            elif field_type == FIELD_Phone:
+                return phones.normalize_phone(value)
+            elif field_type == FIELD_FirstName or field_type == FIELD_LastName:
+                return names.normalize_name(value)
+            elif field_type == FIELD_Date:
+                return dates.normalize_date(value)
+            elif field_type == FIELD_JobTitle:
+                return job_titles.normalize_job_title(value)
+            elif field_type == "currency":
+                # New currency normalizer logic
+                amount = parse_currency(str(value))
+                return {
+                    "normalized_value": amount,
+                    "field_status": "VALID" if amount is not None else "ERROR",
+                    "reason": None
+                }
+            elif field_type == FIELD_Company:
+                clean_value = str(value).strip() if value else None
+                return {
+                    "normalized_value": clean_value,
+                    "field_status": "VALID",
+                    "reason": None
+                }
+            else:
+                return None
+        except Exception as e:
+            return {
+                "normalized_value": None,
+                "field_status": "ERROR",
+                "reason": str(e)
+            }

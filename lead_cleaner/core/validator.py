@@ -42,14 +42,19 @@ class DataValidator:
         headers = set(df.columns)
         intersection = headers.intersection(REQUIRED_FIELDS)
         
+        # In dynamic mode, we shouldn't strictly enforce email/phone
+        # But we should warn if standard contact info is missing
         if not intersection:
-            error_msg = f"Missing required columns. Found: {headers}. valid overlap required with: {REQUIRED_FIELDS}"
             self.logger.log_event(
                 phase="SETUP",
-                action="VALIDATION_FAILED",
-                reason=error_msg
+                action="VALIDATION_WARNING",
+                reason=f"No standard contact fields (email/phone) found. Processing in generic mode."
             )
-            raise ValidationError(error_msg)
+            # We don't raise ValidationError here anymore purely based on column names,
+            # unless the file is empty which is handled by pd.read_csv usually returning empty DF
+            if df.empty:
+                 raise ValidationError("Input CSV is empty")
+
 
         # Log success
         self.logger.log_event(
