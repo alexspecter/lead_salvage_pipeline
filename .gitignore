@@ -52,3 +52,6 @@ htmlcov/
 
 # MLX model cache (if applicable)
 .cache/
+
+# User Output
+user_output/
