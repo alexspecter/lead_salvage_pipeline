@@ -27,6 +27,22 @@ def calculate_confidence(row: LeadRow, expected_fields: dict) -> float:
     for field, result in details.items():
         if result.get("field_status") == "INVALID":
             score -= 0.5
+            
+    # Check for Complex/Dirty Job Titles -> Force AI
+    # If job title contains emojis, slashes, or buzzwords, we need Semantic Cleaning
+    import re
+    from lead_cleaner.constants import FIELD_JobTitle
+    
+    job_val = data.get(FIELD_JobTitle)
+    if job_val:
+        # Detect emojis (regex range)
+        has_emoji = bool(re.search(r'[^\x00-\x7F]+', str(job_val)))
+        # Detect complex separators or buzzwords
+        has_complex_chars = bool(re.search(r'[/|]', str(job_val)))
+        has_buzzwords = bool(re.search(r'\b(ninja|guru|visionary|rockstar|wizard|mom of)\b', str(job_val), re.IGNORECASE))
+        
+        if has_emoji or has_complex_chars or has_buzzwords:
+             score -= 0.6  # Sufficient penalty to drop below 0.8 default threshold
     
     return max(0.0, score)
 

@@ -11,10 +11,13 @@ from lead_cleaner.phase2_semantic.chunker import chunk_data
 from lead_cleaner.phase2_semantic.prompt import PromptGenerator
 from lead_cleaner.constants import PHASE_2_SEMANTIC
 
+from lead_cleaner.utils.rejection_cache import RejectionCache
+
 class Phase2Runner:
-    def __init__(self, logger: PipelineLogger, run_id: str):
+    def __init__(self, logger: PipelineLogger, run_id: str, rejection_cache: RejectionCache):
         self.logger = logger
         self.run_id = run_id
+        self.rejection_cache = rejection_cache
         self.memory_guard = MemoryGuard(logger)
         self.llm = LocalLLM(logger)
         
@@ -153,15 +156,33 @@ class Phase2Runner:
                             parse_error = e
                     else:
                         # 3. Try finding first { and last }
-                        start = response_str.find("{")
-                        end = response_str.rfind("}")
+                        # Handle Hallucinated Suffixes (e.g. "Input: ...")
+                        # Truncate at "Input:" if present
+                        check_str = response_str
+                        input_idx = check_str.find("Input:")
+                        if input_idx != -1:
+                            check_str = check_str[:input_idx]
+                            
+                        start = check_str.find("{")
+                        end = check_str.rfind("}")
+                        
                         if start != -1 and end != -1:
                             try:
-                                cleaned_data = json.loads(response_str[start:end+1])
+                                candidate = check_str[start:end+1]
+                                cleaned_data = json.loads(candidate)
                             except json.JSONDecodeError as e:
                                 parse_error = e
                         else:
-                            parse_error = json.JSONDecodeError("No JSON found", response_str, 0)
+                             # Fallback: try original string just in case 'Input:' wasn't the delimiter
+                             start = response_str.find("{")
+                             end = response_str.rfind("}")
+                             if start != -1 and end != -1:
+                                 try:
+                                     cleaned_data = json.loads(response_str[start:end+1])
+                                 except json.JSONDecodeError as e:
+                                     parse_error = e
+                             else:
+                                 parse_error = json.JSONDecodeError("No JSON found", response_str, 0)
                 
                 # Handle parse failure
                 if parse_error or cleaned_data is None:
@@ -176,6 +197,26 @@ class Phase2Runner:
                     row["failure_reason"] = FailureReason.INVALID_FORMAT
                     self.logger.log_event(PHASE_2_SEMANTIC, "SCHEMA_ERROR", row_id=row["row_id"], reason="LLM returned non-dict")
                     continue
+                
+                # NORMALIZE AI KEYS: Map aliases back to canonical names
+                # e.g. AI returns "job" -> map to "job_title"
+                from lead_cleaner.constants import FIELD_TYPE_PATTERNS
+                
+                normalized_ai_data = {}
+                for key, value in cleaned_data.items():
+                    key_lower = key.lower().strip()
+                    mapped_key = key
+                    
+                    # Check against all patterns
+                    for canonical, aliases in FIELD_TYPE_PATTERNS.items():
+                        if key_lower == canonical or key_lower in aliases:
+                            mapped_key = canonical
+                            break
+                    
+                    normalized_ai_data[mapped_key] = value
+                
+                # Update row
+                cleaned_data = normalized_ai_data
                     
                 # Merge LLM output but preserve Phase 1 normalized values for critical fields
                 # LLM may return raw_data phone format, but Phase 1 already normalized it

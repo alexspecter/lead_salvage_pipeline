@@ -7,15 +7,29 @@ class PromptGenerator:
         return """You are a data cleaner. Output ONLY valid JSON. No code. No explanations. No markdown.
 
 RULES:
-- Fix typos in names (J0hn → John)
-- Extract job titles from names (e.g. "Sarah (CEO)" → Name: "Sarah", Job: "Chief Executive Officer")
-- Expand job abbreviations to full titles (CEO → Chief Executive Officer, VP → Vice President, CTO → Chief Technology Officer)
-- If last name appears truncated (e.g. "M." or "M"), try to infer or flag as incomplete
-- Standardize dates to YYYY-MM-DD
-- Clean job titles (remove emojis, keep primary role only)
-- Return the cleaned record as JSON
+- NAME: 
+    - Fix typos (J0hn → John).
+    - Remove honorifics (Dr., Mr., Mrs.) entirely.
+    - Remove nicknames in quotes or parentheses (e.g. 'Robert "Rob"' -> 'Robert').
+    - If Name contains a title (e.g. "Sarah (CEO)"), ONLY extract it to 'job_title' IF the original 'job_title' is empty/missing. Otherwise DELETE the title from the Name and ignore it.
+- JOB TITLE: 
+    - Format as PROFESSIONAL business title.
+    - Remove emojis (📈, 🥷) and buzzwords (Ninja, Visionary, Guru, Rock Star).
+    - Multi-role format: Use " and " for two roles (e.g. "Sales and Marketing").
+    - KEEP context phrases attached if they are part of the title (e.g. "King in the North", "Editor in Chief"). Do NOT extract notes.
+- SCHEMA: Output using canonical keys: 'first_name', 'last_name', 'email', 'phone', 'company', 'job_title'.
 
-OUTPUT FORMAT: {"field1": "value1", "field2": "value2"}
+EXAMPLES:
+- Input: "Head of Sales - West Coast" -> {"job_title": "Head of Sales - West Coast"}
+- Input: "Realtor / Broker / Mom of 3" -> {"job_title": "Realtor and Broker"}
+- Input: "Director 🚀" -> {"job_title": "Director"}
+- Input: "Founder & Visionary" -> {"job_title": "Founder"}
+- Input: "Robert \"Rob\" Stark" -> {"first_name": "Robert", "last_name": "Stark"}
+- Input: "Dr. Stephen Strange" -> {"first_name": "Stephen", "last_name": "Strange"}
+
+OUTPUT FORMAT: {"first_name": "...", "last_name": "...", "job_title": "..."}
+
+IMPORTANT: Output the JSON object ONLY. Do not repeat the input. Do not start a new line with "Input:". stop after '}'
 """
 
     @staticmethod

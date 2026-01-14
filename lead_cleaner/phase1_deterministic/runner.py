@@ -29,10 +29,14 @@ from lead_cleaner.phase1_deterministic.missing_values import sanitize_value, is_
 from lead_cleaner.phase1_deterministic.type_inference import infer_column_type, parse_currency
 
 
+from lead_cleaner.utils.rejection_cache import RejectionCache
+
+
 class Phase1Runner:
-    def __init__(self, logger: PipelineLogger, run_id: str):
+    def __init__(self, logger: PipelineLogger, run_id: str, rejection_cache: RejectionCache):
         self.logger = logger
         self.run_id = run_id
+        self.rejection_cache = rejection_cache
         # Map: lowercase_col_name -> detected_type
         self._field_type_cache: Dict[str, Optional[str]] = {}
 
@@ -159,6 +163,7 @@ class Phase1Runner:
         raw = row["raw_data"]
         clean = {}
         details = {}
+        row_id = row["row_id"]
         
         # STEP 1: Preserve all fields with basic sanitization
         # We start by initializing clean_data with sanitized raw values
@@ -166,7 +171,18 @@ class Phase1Runner:
             for field_name, value in raw.items():
                 field_lower = field_name.lower().strip()
                 # Apply basic sanitization (handles missing values logic)
-                clean[field_lower] = sanitize_value(value, field_lower)
+                sanitized = sanitize_value(value, field_lower)
+                clean[field_lower] = sanitized
+                
+                # REJECTION CACHE: If value was changed by sanitization (and不是None to None), track it
+                if is_missing(value) and str(value).strip() != str(sanitized).strip():
+                     self.rejection_cache.add_value_rejection(
+                         row_id=row_id,
+                         field=field_name,
+                         original_value=value,
+                         new_value=sanitized,
+                         reason="Missing/Placeholder Sanitization"
+                     )
         
         # STEP 2: Apply specialized normalizers to detected field types
         for field_name, value in raw.items():
@@ -180,7 +196,18 @@ class Phase1Runner:
                     details[field_name] = result  # Store under original name in details
                     
                     norm_val = result.get("normalized_value")
+                    field_status = result.get("field_status")
                     
+                    # REJECTION CACHE: If validation failed, log it as a value rejection
+                    if field_status in ["INVALID", "ERROR"]:
+                        self.rejection_cache.add_value_rejection(
+                            row_id=row_id,
+                            field=field_name,
+                            original_value=value,
+                            new_value=norm_val,
+                            reason=f"Normalization {field_status}: {result.get('reason')}"
+                        )
+
                     if norm_val is not None:
                         # LOGIC FOR WRITING TO CLEAN DATA:
                         
@@ -193,10 +220,10 @@ class Phase1Runner:
                         if detected_type in {FIELD_Email, FIELD_Phone}:
                             clean[detected_type] = norm_val
                             
-                        # 3. For First/Last names, we also want canonical mapping if possible
+                        # 3. For First/Last names and Job Titles
                         #    But be careful not to overwrite if we have multiple name fields
                         #    Assuming standard dataset logic for now.
-                        if detected_type in {FIELD_FirstName, FIELD_LastName}:
+                        if detected_type in {FIELD_FirstName, FIELD_LastName, FIELD_JobTitle}:
                             clean[detected_type] = norm_val
 
         row["clean_data"] = clean

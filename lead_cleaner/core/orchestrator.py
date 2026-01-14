@@ -16,22 +16,34 @@ from lead_cleaner.phase2_semantic.runner import Phase2Runner
 from lead_cleaner.phase3_merge.runner import Phase3Runner
 from lead_cleaner.exceptions import LeadCleanerError, VerificationError, SecurityViolationError, FileTypeError
 from lead_cleaner.core.security import run_security_checks
+from lead_cleaner.utils.rejection_cache import RejectionCache
 
 class Orchestrator:
     def __init__(self):
         self.run_id = generate_run_id()
         self.logger = PipelineLogger(self.run_id)
         self.monitor = SystemMonitor(self.logger)
+        self.rejection_cache = RejectionCache(DEFAULT_OUTPUT_DIR, self.run_id, self.logger)
         
     def run_pipeline(self, input_file: str, output_dir: str = DEFAULT_OUTPUT_DIR):
         print(f"--- Starting Pipeline Run {self.run_id} ---")
         try:
+            # Update rejection cache if output_dir is different
+            if output_dir != DEFAULT_OUTPUT_DIR:
+                self.rejection_cache = RejectionCache(output_dir, self.run_id, self.logger)
+
             # 1. System Check
             self.monitor.log_baseline()
             
             # 2. Phase 0: Security Scan (multi-layer)
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 0: Security Scan")
-            sanitized_file = run_security_checks(input_file, self.logger)
+            # Wrap security checks to move rejected files to cache
+            try:
+                sanitized_file = run_security_checks(input_file, self.logger)
+            except (SecurityViolationError, MalwareDetectedError) as e:
+                # Security module deletes the file. We just log it to rejection cache.
+                self.rejection_cache.log_security_rejection(os.path.basename(input_file), str(e))
+                raise
             
             # 3. Phase 0: Validate Input (using sanitized file)
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 0: Validation")
@@ -41,7 +53,7 @@ class Orchestrator:
             
             # 4. Phase 1: Deterministic
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 1: Deterministic")
-            p1_runner = Phase1Runner(self.logger, self.run_id)
+            p1_runner = Phase1Runner(self.logger, self.run_id, self.rejection_cache)
             rows = p1_runner.process(df)
             
             # 5. CRITICAL GATE: Unit Tests
@@ -49,12 +61,12 @@ class Orchestrator:
             
             # 6. Phase 2: Semantic (AI)
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 2: Semantic")
-            p2_runner = Phase2Runner(self.logger, self.run_id)
+            p2_runner = Phase2Runner(self.logger, self.run_id, self.rejection_cache)
             rows = p2_runner.process(rows)
             
             # 7. Phase 3: Merge & Verify
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 3: Merge/Verify")
-            p3_runner = Phase3Runner(self.logger, self.run_id)
+            p3_runner = Phase3Runner(self.logger, self.run_id, self.rejection_cache)
             p3_runner.process(rows, output_dir)
             
             print(f"--- SUCCESS: Run {self.run_id} Completed ---")
