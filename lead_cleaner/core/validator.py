@@ -70,6 +70,9 @@ class DataValidator:
             reason=f"File {os.path.basename(file_path)} passed validation. Columns: {list(df.columns)}"
         )
         
+        # Add line number metadata for order preservation
+        df['_line_number'] = range(1, len(df) + 1)
+        
         return df
     
     def _load_csv(self, file_path: str) -> pd.DataFrame:

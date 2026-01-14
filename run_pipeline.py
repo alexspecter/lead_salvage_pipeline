@@ -8,8 +8,13 @@ sys.path.append(os.getcwd())
 from lead_cleaner.core.orchestrator import Orchestrator
 
 def main():
+    health_check = False
+    if "--health-check" in sys.argv:
+        health_check = True
+        sys.argv.remove("--health-check")
+
     if len(sys.argv) < 2:
-        print("Usage: python run_pipeline.py <path_to_input_csv> [output_dir]")
+        print("Usage: python run_pipeline.py <path_to_input_csv> [output_dir] [--health-check]")
         sys.exit(1)
         
     input_csv = sys.argv[1]
@@ -20,7 +25,7 @@ def main():
         sys.exit(1)
         
     orch = Orchestrator()
-    orch.run_pipeline(input_csv, output_dir)
+    orch.run_pipeline(input_csv, output_dir, health_check=health_check)
 
 if __name__ == "__main__":
     main()

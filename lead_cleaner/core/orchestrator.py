@@ -25,8 +25,11 @@ class Orchestrator:
         self.monitor = SystemMonitor(self.logger)
         self.rejection_cache = RejectionCache(DEFAULT_OUTPUT_DIR, self.run_id, self.logger)
         
-    def run_pipeline(self, input_file: str, output_dir: str = DEFAULT_OUTPUT_DIR):
+    def run_pipeline(self, input_file: str, output_dir: str = DEFAULT_OUTPUT_DIR, health_check: bool = False):
         print(f"--- Starting Pipeline Run {self.run_id} ---")
+        if health_check:
+            print("[MODE] HEALTH CHECK / DRY RUN - No files will be written.")
+            
         try:
             # Update rejection cache if output_dir is different
             if output_dir != DEFAULT_OUTPUT_DIR:
@@ -43,6 +46,9 @@ class Orchestrator:
             except (SecurityViolationError, MalwareDetectedError) as e:
                 # Security module deletes the file. We just log it to rejection cache.
                 self.rejection_cache.log_security_rejection(os.path.basename(input_file), str(e))
+                if health_check:
+                    print(f"\n[HEALTH REPORT] CRITICAL: Security Check Failed - {str(e)}")
+                    return
                 raise
             
             # 3. Phase 0: Validate Input (using sanitized file)
@@ -58,6 +64,36 @@ class Orchestrator:
             
             # 5. CRITICAL GATE: Unit Tests
             self._run_critical_gate_tests()
+            
+            # HEALTH CHECK INTERCEPT
+            if health_check:
+                from lead_cleaner.types import RowStatus
+                total = len(rows)
+                clean = sum(1 for r in rows if r["status"] == RowStatus.CLEAN)
+                ai = sum(1 for r in rows if r["status"] == RowStatus.AI_REQUIRED)
+                rejected = sum(1 for r in rows if r["status"] == RowStatus.REJECTED)
+                
+                print("\n" + "="*40)
+                print("       DATA HEALTH REPORT       ")
+                print("="*40)
+                print(f"Total Rows:       {total}")
+                print(f"Phase 1 Clean:    {clean} ({clean/total:.1%} - Ready)")
+                print(f"AI Required:      {ai} ({ai/total:.1%} - Needs Phase 2)")
+                print(f"Rejected/Dupes:   {rejected} ({rejected/total:.1%})")
+                print("-" * 40)
+                
+                if ai > (total * 0.5):
+                    print("⚠️  High AI Usage Predicted (>50% of rows need AI)")
+                else:
+                    print("✅ Data Quality Looks Good")
+                    
+                print("\nReasoning for AI Routing (Sample):")
+                ai_rows = [r for r in rows if r["status"] == RowStatus.AI_REQUIRED][:5]
+                for r in ai_rows:
+                    print(f" - Row {r['raw_data'].get('_line_number', '?')}: {r.get('failure_reason', 'Semantic Processing Required')}")
+                    
+                print("="*40 + "\n")
+                return
             
             # 6. Phase 2: Semantic (AI)
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 2: Semantic")

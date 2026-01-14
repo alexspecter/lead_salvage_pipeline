@@ -161,10 +161,22 @@ class Phase3Runner:
             if include_raw:
                 for k, v in r.get("raw_data", {}).items():
                     item[f"raw_{k}"] = v
+            
+            # Extract line number for sorting (critical for order preservation)
+            raw_data = r.get("raw_data", {})
+            if "_line_number" in raw_data:
+                item["_sorting_index"] = raw_data["_line_number"]
+            else:
+                item["_sorting_index"] = float('inf') # Append to end if missing
                     
             flat_data.append(item)
         
         df = pd.DataFrame(flat_data)
+        
+        # Sort by original input order
+        if "_sorting_index" in df.columns:
+            df = df.sort_values("_sorting_index")
+            df = df.drop(columns=["_sorting_index"])
         
         metadata_cols = ["row_id"] if minimal_metadata else ["row_id", "run_id", "status", "confidence_score", "failure_reason"]
         

@@ -40,3 +40,15 @@ PLACEHOLDER_ELIGIBLE_FIELDS = {
 # Fields that are numeric and should NOT get placeholder replacement
 NUMERIC_FIELDS = {"age", "salary", "score", "rating", "count", "amount", "price", "cost"}
 
+# Acronyms that should be fully uppercased in titles
+PROFESSIONAL_ACRONYMS = [
+    "HR", "CEO", "CFO", "COO", "CTO", "CIO", "CMO", "CRO", "CPO", 
+    "VP", "SVP", "EVP", "AVP", 
+    "IT", "KA", "BD", "R&D", "QA", "QC", 
+    "AI", "ML", "B2B", "B2C", "SaaS", 
+    "UX", "UI", 
+    "PR", "ROI", "KPI", "SEO", "SEM", 
+    "PMP", "CPA", "MBA", "PHD", "MD", "RN", "LPN"
+]
+
+
