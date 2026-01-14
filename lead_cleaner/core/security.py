@@ -119,6 +119,23 @@ def validate_magic_bytes(file_path: str, logger) -> None:
                 "This may indicate a disguised malicious file."
             )
     
+    elif ext in ('.db', '.sqlite'):
+        # SQLite files should start with "SQLite format 3\0"
+        expected_magic = b"SQLite format 3\x00"
+        with open(file_path, 'rb') as f:
+            actual_magic = f.read(len(expected_magic))
+        
+        if actual_magic != expected_magic:
+            logger.log_event(
+                phase="SECURITY",
+                action="INVALID_FILE_SIGNATURE",
+                reason=f"Expected SQLite signature, got: {actual_magic[:16]!r}"
+            )
+            raise FileSignatureError(
+                f"File claims to be SQLite database but magic bytes don't match. "
+                f"This may indicate a corrupted or malicious file."
+            )
+    
     elif ext in FILE_SIGNATURES:
         expected_magic, description = FILE_SIGNATURES[ext]
         

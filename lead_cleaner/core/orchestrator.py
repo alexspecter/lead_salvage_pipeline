@@ -23,7 +23,7 @@ class Orchestrator:
         self.logger = PipelineLogger(self.run_id)
         self.monitor = SystemMonitor(self.logger)
         
-    def run_pipeline(self, input_csv: str, output_dir: str = DEFAULT_OUTPUT_DIR):
+    def run_pipeline(self, input_file: str, output_dir: str = DEFAULT_OUTPUT_DIR):
         print(f"--- Starting Pipeline Run {self.run_id} ---")
         try:
             # 1. System Check
@@ -31,12 +31,12 @@ class Orchestrator:
             
             # 2. Phase 0: Security Scan (multi-layer)
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 0: Security Scan")
-            sanitized_csv = run_security_checks(input_csv, self.logger)
+            sanitized_file = run_security_checks(input_file, self.logger)
             
             # 3. Phase 0: Validate Input (using sanitized file)
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 0: Validation")
             validator = DataValidator(self.logger)
-            df = validator.validate_csv(sanitized_csv)
+            df = validator.validate_input(sanitized_file)
 
             
             # 4. Phase 1: Deterministic
@@ -100,7 +100,7 @@ class Orchestrator:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python -m lead_cleaner.core.orchestrator <input_csv>")
+        print("Usage: python -m lead_cleaner.core.orchestrator <input_file>")
         sys.exit(1)
         
     orch = Orchestrator()
