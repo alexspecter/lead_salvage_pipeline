@@ -35,6 +35,7 @@ def is_missing(value: Any) -> bool:
     - Empty strings
     - Common placeholder strings (N/A, null, -, ?, etc.)
     - Whitespace-only strings
+    - Leading security quotes (from scan_and_secure)
     
     Args:
         value: The value to check
@@ -51,12 +52,15 @@ def is_missing(value: Any) -> bool:
     
     # Handle string representations
     if isinstance(value, str):
-        stripped = value.strip()
-        # Check if empty or in known indicators
-        if stripped == "" or stripped in MISSING_VALUE_INDICATORS:
+        # Strip potential security quote for missingness check
+        check_val = value.strip()
+        if check_val.startswith("'") and len(check_val) > 1:
+            check_val = check_val[1:].strip()
+            
+        if check_val == "" or check_val in MISSING_VALUE_INDICATORS:
             return True
         # Case-insensitive check
-        if stripped.lower() in {v.lower() for v in MISSING_VALUE_INDICATORS if v}:
+        if check_val.lower() in {v.lower() for v in MISSING_VALUE_INDICATORS if v}:
             return True
     
     return False
@@ -65,17 +69,6 @@ def is_missing(value: Any) -> bool:
 def get_field_category(field_name: str) -> str:
     """
     Determines the category of a field for appropriate missing value handling.
-    
-    Categories:
-    - "placeholder_eligible": Text fields that should get "Not Provided"
-    - "numeric": Numeric fields that should preserve null/NaN
-    - "other": Other fields that get basic sanitization
-    
-    Args:
-        field_name: The normalized field name
-        
-    Returns:
-        Field category string
     """
     field_lower = field_name.lower()
     
@@ -100,40 +93,26 @@ def handle_missing(
 ) -> Any:
     """
     Applies appropriate missing value handling based on field type.
-    
-    Handling strategies:
-    - Text fields (email, name, etc.): Replace with "Not Provided"
-    - Numeric fields: Preserve as None/NaN for statistical accuracy
-    - Date fields: Preserve as None
-    - Other fields: Basic sanitization, optionally use placeholder
-    
-    Args:
-        value: The value to process
-        field_name: The field/column name
-        field_type: Optional explicit field type override
-        use_placeholder: Whether to use placeholder for eligible fields
-        
-    Returns:
-        The processed value
     """
-    # If not missing, return as-is (with basic sanitization)
-    if not is_missing(value):
-        # Basic sanitization for strings
+    # 1. Check if missing
+    missing = is_missing(value)
+    
+    # 2. If NOT missing, return original (but strip security quotes)
+    if not missing:
         if isinstance(value, str):
-            return value.strip()
+            val = value.strip()
+            # Strip security quote if present
+            if val.startswith("'") and len(val) > 1:
+                val = val[1:].strip()
+            return val
         return value
     
-    # Determine field category
+    # 3. If missing, apply strategy
     category = get_field_category(field_name)
     
     if category == "numeric":
-        # Preserve null for numeric fields (important for stats/ML)
         return None
     
-    if category == "placeholder_eligible" and use_placeholder:
-        return MISSING_VALUE_PLACEHOLDER
-    
-    # For other fields, use placeholder if requested
     if use_placeholder:
         return MISSING_VALUE_PLACEHOLDER
     
@@ -143,15 +122,6 @@ def handle_missing(
 def sanitize_value(value: Any, field_name: str) -> Any:
     """
     Sanitizes a value - handles missing values and applies basic cleaning.
-    
-    This is the main entry point for value sanitization in the pipeline.
-    
-    Args:
-        value: The value to sanitize
-        field_name: The field/column name
-        
-    Returns:
-        The sanitized value
     """
     return handle_missing(value, field_name, use_placeholder=True)
 
@@ -159,15 +129,6 @@ def sanitize_value(value: Any, field_name: str) -> Any:
 def create_missing_indicators(raw_data: Dict[str, Any]) -> Dict[str, bool]:
     """
     Creates binary indicators for fields that were originally missing.
-    
-    This is useful for ML models where the fact that data was missing
-    may itself be informative (Missing Not at Random - MNAR).
-    
-    Args:
-        raw_data: The raw data dictionary
-        
-    Returns:
-        Dictionary mapping field names to boolean (True = was missing)
     """
     indicators = {}
     for field_name, value in raw_data.items():

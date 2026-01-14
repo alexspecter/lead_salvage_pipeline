@@ -17,7 +17,8 @@ from lead_cleaner.constants import FIELD_Email, FIELD_Phone, FIELD_Date
 # Regex Patterns
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
 PHONE_REGEX = re.compile(r'^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$')
-CURRENCY_REGEX = re.compile(r'^[\$€£¥₹] ?\d+(?:[\.,]\d+)?[KMBkmb]?$')
+# Updated: Support optional leading quote, negative sign, and whitespace
+CURRENCY_REGEX = re.compile(r"^\s*'?\s*[\$€£¥₹]?\s*-?\d+(?:[\.,]\d+)?[KMBkmb]?\s*$")
 
 def infer_column_type(series: pd.Series, sample_size: int = 10) -> Optional[str]:
     """
@@ -34,32 +35,43 @@ def infer_column_type(series: pd.Series, sample_size: int = 10) -> Optional[str]
     if samples.empty:
         return None
         
+    # Pre-process samples to strip potential security quotes for testing
+    def _clean_sample(val: str) -> str:
+        s = val.strip()
+        if s.startswith("'") and len(s) > 1:
+            return s[1:]
+        return s
+
+    clean_samples = [target for target in (_clean_sample(s) for s in samples) if target]
+    
+    if not clean_samples:
+        return None
+
     # Check types in order of specificity
     
     # 1. Email (High confidence regex)
-    if _check_all(samples, _is_email):
+    if _check_all(clean_samples, _is_email):
         return FIELD_Email
         
     # 2. Currency (Has symbols or K/M suffixes)
-    if _check_all(samples, _is_currency):
+    if _check_all(clean_samples, _is_currency):
         return "currency"
         
     # 3. Date (Parsable)
-    # We use a threshold here because date parsing can be aggressive
-    if _check_all(samples, _is_date):
+    if _check_any_threshold(clean_samples, _is_date, threshold=0.85):
         return FIELD_Date
         
     # 4. Phone (Regex)
-    if _check_any_threshold(samples, _is_phone, threshold=0.8):
+    if _check_any_threshold(clean_samples, _is_phone, threshold=0.8):
         return FIELD_Phone
         
     return None
 
-def _check_all(samples: pd.Series, check_func) -> bool:
+def _check_all(samples, check_func) -> bool:
     """Returns True if ALL samples pass the check function."""
     return all(check_func(x) for x in samples)
 
-def _check_any_threshold(samples: pd.Series, check_func, threshold: float) -> bool:
+def _check_any_threshold(samples, check_func, threshold: float) -> bool:
     """Returns True if proportion of passing samples >= threshold."""
     count = sum(1 for x in samples if check_func(x))
     return (count / len(samples)) >= threshold
@@ -73,9 +85,6 @@ def _is_phone(value: str) -> bool:
     if not clean.isdigit():
         return False
     # Stricter: phone numbers usually have 7-15 digits
-    # And preferably usually have some separators if they are standardized
-    # But clean data might not. 
-    # Let's enforce: If it's pure digits, must be at least 10 chars to be safe (avoid IDs like 1234567)
     if value.isdigit() and len(value) < 10:
         return False
         
@@ -87,32 +96,35 @@ def _is_date(value: str) -> bool:
     if s.replace('.','',1).isdigit():
         return False
         
-    # Must have some date-like characteristics (separators or month names)
-    # prevent "Start" or "End" being parsed as dates
     if not re.search(r'[/\-,\s]', s) and not any(m in s.lower() for m in ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']):
         return False
         
     try:
-        # fuzzy=False ensures we don't parse "My cat is 10" as a date
         parse(s, fuzzy=False)
         return True
     except:
         return False
 
 def _is_currency(value: str) -> bool:
-    return bool(CURRENCY_REGEX.match(value.strip()))
+    # Handle the quote inside the check if needed, but clean_samples handled it
+    return bool(CURRENCY_REGEX.match(value.strip())) or bool(CURRENCY_REGEX.match("'" + value.strip()))
 
 def parse_currency(value: str) -> Optional[float]:
     """
     Helper to convert currency string (e.g. €1.5M) to float.
+    Handles negative numbers and security quotes.
     """
     if not value or pd.isna(value):
         return None
         
     s = str(value).strip().upper()
     
-    # Extract numeric part and multiplier
-    numeric_match = re.search(r'(\d+(?:\.\d+)?)', s)
+    # Strip security quote if present
+    if s.startswith("'") and len(s) > 1:
+        s = s[1:]
+    
+    # Extract numeric part including negative sign and optional decimal
+    numeric_match = re.search(r'(-?\d+(?:\.\d+)?)', s)
     if not numeric_match:
         return None
         

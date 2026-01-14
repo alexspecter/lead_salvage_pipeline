@@ -73,9 +73,54 @@ class DataValidator:
         return df
     
     def _load_csv(self, file_path: str) -> pd.DataFrame:
-        """Load a CSV file into a DataFrame."""
+        """Load a CSV file into a DataFrame with smart header detection."""
         try:
-            return pd.read_csv(file_path)
+            # First attempt: standard load
+            df = pd.read_csv(file_path)
+            
+            # Check if headers look invalid (mostly "Unnamed" or empty)
+            # A header is considered "bad" if >50% of cols are Unnamed or empty, 
+            # OR if it's completely empty
+            
+            def is_bad_header(columns):
+                unnamed_count = sum(1 for c in columns if str(c).startswith("Unnamed:") or str(c).strip() == "")
+                return unnamed_count > (len(columns) / 2)
+
+            if is_bad_header(df.columns) and not df.empty:
+                self.logger.log_event("SETUP", "HEADER_DETECTION", "Initial headers look invalid. Scanning for real header...")
+                
+                # Scan first few rows for a candidate
+                best_header_row = -1
+                
+                # Look at first 10 rows max
+                rows_to_check = min(10, len(df))
+                
+                for i in range(rows_to_check):
+                    row_values = df.iloc[i].astype(str).tolist()
+                    # simplistic check: do we have at least 2 non-empty, non-nan-looking strings?
+                    # and preferably no "nan" strings if possible, though pandas casts them so it's tricky.
+                    
+                    valid_cols = sum(1 for v in row_values if v.strip() and v.lower() != 'nan' and v.lower() != 'none')
+                    
+                    # If this row has significantly more valid columns than the current bad header...
+                    # or just looks "good enough" (e.g. > 50% filled)
+                    if valid_cols > (len(df.columns) / 2):
+                        best_header_row = i
+                        break
+                
+                if best_header_row != -1:
+                    # Reload with the new header offset
+                    # Note: 'header' in read_csv is 0-indexed. 
+                    # If df.iloc[0] is the header, that is actually line 1 (0-indexed line 1, since line 0 was the bad header)
+                    # wait, read_csv uses line numbers of the *file*.
+                    # The bad header was line 0. df.iloc[0] is line 1.
+                    # So if we found a header at df.iloc[i], the header argument should be i + 1
+                    
+                    new_header_idx = best_header_row + 1
+                    self.logger.log_event("SETUP", "HEADER_CORRECTION", f"Found better header at line {new_header_idx}. Reloading...")
+                    return pd.read_csv(file_path, header=new_header_idx)
+            
+            return df
         except Exception as e:
             error_msg = f"Failed to read CSV: {str(e)}"
             self.logger.log_error("SETUP", "CSV Read Failed", e)

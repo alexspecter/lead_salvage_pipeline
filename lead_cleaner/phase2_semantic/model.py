@@ -27,17 +27,8 @@ class LocalLLM:
 
         self.logger.log_event("PHASE_2", "MODEL_LOAD_START", reason=self.model_path)
         try:
-            # Using 4-bit quantized model as per directive (though directive said 70B, using 8B for dev/test if 70B not available or for speed)
-            # Directive said: Llama 3.1 70B 4-bit.
-            # I will default to that path but allow overriding.
-            # For this environment I might need to stick to what I can run or just code it.
-            # I'll stick to the directive's requested model in the code but use a smaller one for default if allowed?
-            # Directive: "Llama 3.1 70B 4-bit". 
-            # CAUTION: 70B requires ~40GB VRAM. m4 max has 64gb so it fits.
-            
-            # For now I will put the string here.
-            model_id = "mlx-community/Meta-Llama-3.1-70B-Instruct-4bit"
-            self.model, self.tokenizer = load(model_id)
+            # Use the model path from __init__ (defaults to 8B for performance)
+            self.model, self.tokenizer = load(self.model_path)
             self.logger.log_event("PHASE_2", "MODEL_LOAD_COMPLETE")
         except Exception as e:
             self.logger.log_error("PHASE_2", "MODEL_LOAD_FAILED", e)
@@ -47,16 +38,19 @@ class LocalLLM:
         if not self.model:
             return "{}" # Fail safe
         
-        # Create sampler for deterministic output (temp=0)
-        # mlx_lm's make_sampler handles temp=0 correctly (usually greedy)
-        sampler = make_sampler(temp=0.0)
+        # Create sampler for near-deterministic output (temp=0.1)
+        sampler = make_sampler(temp=0.1)
+        
+        # Note: stop strings not supported in current mlx_lm version
+        # Rely on max_tokens to limit generation
             
         response = generate(
             self.model, 
             self.tokenizer, 
             prompt=prompt, 
             verbose=False, 
-            max_tokens=512,
+            max_tokens=150,
             sampler=sampler
         )
         return response
+

@@ -29,6 +29,19 @@ class Phase2Runner:
             self.logger.log_event(PHASE_2_SEMANTIC, "SKIP", reason="No rows require AI processing")
             return rows
 
+        # Dynamic Model Selection
+        # If batch is small (<= 200), use the high-quality 70B model
+        # Otherwise use the fast 8B model (default)
+        model_id = "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
+        if len(ai_rows) <= 200:
+            model_id = "mlx-community/Meta-Llama-3.1-70B-Instruct-4bit"
+            self.logger.log_event(PHASE_2_SEMANTIC, "MODEL_SELECT", reason=f"Small batch ({len(ai_rows)} rows). Using 70B model for quality.")
+        else:
+            self.logger.log_event(PHASE_2_SEMANTIC, "MODEL_SELECT", reason=f"Large batch ({len(ai_rows)} rows). Using 8B model for speed.")
+            
+        # Re-initialize LLM with chosen model
+        self.llm = LocalLLM(self.logger, model_path=model_id)
+
         # Load Model (Guarded)
         try:
             self.memory_guard.check_memory()
@@ -164,7 +177,34 @@ class Phase2Runner:
                     self.logger.log_event(PHASE_2_SEMANTIC, "SCHEMA_ERROR", row_id=row["row_id"], reason="LLM returned non-dict")
                     continue
                     
-                row["clean_data"].update(cleaned_data)
+                # Merge LLM output but preserve Phase 1 normalized values for critical fields
+                # LLM may return raw_data phone format, but Phase 1 already normalized it
+                preserved_fields = {'phone', 'email'}  # Fields Phase 1 handles well
+                
+                for key, value in cleaned_data.items():
+                    key_lower = key.lower()
+                    
+                    # Safety Check: Don't let AI overwrite existing data with "Not Provided" or None
+                    if key_lower in row["clean_data"] and row["clean_data"][key_lower]:
+                        # Definition of "useless" new value
+                        is_useless = (
+                            value is None 
+                            or (isinstance(value, str) and (not value.strip() or value.strip().lower() == "not provided"))
+                        )
+                        if is_useless:
+                            continue # Keep Phase 1 value
+
+                    # If this is a preserved field and Phase 1 already has a valid value, keep it
+                    if key_lower in preserved_fields and key_lower in row["clean_data"]:
+                        existing = row["clean_data"][key_lower]
+                        # Keep Phase 1's value if it looks normalized (has dashes for phone, @ for email)
+                        if key_lower == 'phone' and existing and '-' in str(existing):
+                            continue  # Keep Phase 1's formatted phone
+                        if key_lower == 'email' and existing and '@' in str(existing):
+                            continue  # Keep Phase 1's email
+                    
+                    row["clean_data"][key_lower] = value
+                    
                 row["status"] = RowStatus.CLEAN
                 row["confidence_score"] = 0.8 # Arbitrary for now, could ask LLM for confidence
                 

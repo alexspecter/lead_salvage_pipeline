@@ -5,7 +5,7 @@ MEMORY_CAP_PERCENT = 0.95
 FORCE_GC_COLLECT = True
 
 # Processing
-CHUNK_SIZE = 10
+CHUNK_SIZE = 25  # Increased for 8B model (~5GB VRAM, safe headroom)
 MAX_ROWS_PER_RUN = 10000
 CONFIDENCE_THRESHOLD = 0.7
 

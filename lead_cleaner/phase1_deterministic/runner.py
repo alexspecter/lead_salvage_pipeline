@@ -39,6 +39,9 @@ class Phase1Runner:
     def process(self, df: pd.DataFrame) -> List[LeadRow]:
         self.logger.log_event(PHASE_1_DETERMINISTIC, "START", reason=f"Processing {len(df)} rows")
         
+        # 0. Deduplicate column names to prevent DataFrame vs Series access issues
+        df = self._deduplicate_columns(df)
+        
         # 1. Detect field types (Header + Content Inference)
         self._field_type_cache = self._detect_field_types(df)
         self.logger.log_event(
@@ -128,9 +131,11 @@ class Phase1Runner:
             if not detected_type:
                 inferred = infer_column_type(df[col])
                 
-                # SAFETY: Prevent IDs from being inferred as Phone numbers
+                # SAFETY: Prevent IDs and financial columns from being inferred as Phone numbers
                 # IDs often look like phone numbers (digits) but shouldn't be formatted
-                if inferred == FIELD_Phone and ("id" in col_lower or "code" in col_lower):
+                # Salary/wage columns are numeric but aren't phones
+                financial_keywords = ["id", "code", "salary", "wage", "amount", "price", "cost", "score", "age"]
+                if inferred == FIELD_Phone and any(x in col_lower for x in financial_keywords):
                     inferred = None
                     
                 if inferred:
@@ -220,7 +225,9 @@ class Phase1Runner:
             elif field_type == FIELD_Phone:
                 return phones.normalize_phone(value)
             elif field_type == FIELD_FirstName or field_type == FIELD_LastName:
-                return names.normalize_name(value)
+                # Pass field name for context-aware validation (e.g., single-letter last names)
+                fn = "first_name" if field_type == FIELD_FirstName else "last_name"
+                return names.normalize_name(value, field_name=fn)
             elif field_type == FIELD_Date:
                 return dates.normalize_date(value)
             elif field_type == FIELD_JobTitle:
@@ -248,3 +255,14 @@ class Phase1Runner:
                 "field_status": "ERROR",
                 "reason": str(e)
             }
+
+    def _deduplicate_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Ensures all columns have unique names by appending suffixes to duplicates.
+        Example: clicks, clicks -> clicks, clicks_1
+        """
+        cols = pd.Series(df.columns)
+        for dup in cols[cols.duplicated()].unique(): 
+            cols[cols[cols == dup].index.values.tolist()] = [dup if i == 0 else f"{dup}_{i}" for i in range(sum(cols == dup))]
+        df.columns = cols
+        return df

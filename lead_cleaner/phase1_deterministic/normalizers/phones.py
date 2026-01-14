@@ -12,6 +12,9 @@ def normalize_phone(value: Optional[str]) -> NormalizerResult:
         
     s = str(value).strip()
     
+    # Strip leading quotes/apostrophes (common Excel artifact)
+    s = s.lstrip("'\"")
+    
     # Remove non-digits
     digits = re.sub(r'\D', '', s)
     
