@@ -14,8 +14,8 @@ from lead_cleaner.config import DEFAULT_OUTPUT_DIR
 from lead_cleaner.phase1_deterministic.runner import Phase1Runner
 from lead_cleaner.phase2_semantic.runner import Phase2Runner
 from lead_cleaner.phase3_merge.runner import Phase3Runner
-from lead_cleaner.exceptions import LeadCleanerError, VerificationError
-from lead_cleaner.core.security import scan_and_secure
+from lead_cleaner.exceptions import LeadCleanerError, VerificationError, SecurityViolationError, FileTypeError
+from lead_cleaner.core.security import run_security_checks
 
 class Orchestrator:
     def __init__(self):
@@ -29,14 +29,15 @@ class Orchestrator:
             # 1. System Check
             self.monitor.log_baseline()
             
-            # 2. Phase 0: Security Scan
+            # 2. Phase 0: Security Scan (multi-layer)
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 0: Security Scan")
-            sanitized_csv = scan_and_secure(input_csv, self.logger)
+            sanitized_csv = run_security_checks(input_csv, self.logger)
             
             # 3. Phase 0: Validate Input (using sanitized file)
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 0: Validation")
             validator = DataValidator(self.logger)
             df = validator.validate_csv(sanitized_csv)
+
             
             # 4. Phase 1: Deterministic
             self.logger.log_event("ORCHESTRATOR", "PHASE_Start", reason="Phase 1: Deterministic")
