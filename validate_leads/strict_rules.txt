@@ -1,0 +1,12 @@
+# Strict Rules File - Requires ALL contacts to be valid
+# =====================================================
+
+# Requirement: Email must be valid format
+Column[email] == Valid
+
+# Requirement: Phone must be valid (filters out "Not Provided" and empty)
+Column[phone] == Valid
+
+# Requirement: Names must be present
+Column[first_name] == True
+Column[last_name] == True

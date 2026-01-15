@@ -1,0 +1,17 @@
+# Sample Rules File for Validate Leads Utility
+# =============================================
+# This file demonstrates the Easy Syntax for filtering leads.
+# Each rule is applied in order; rows must pass ALL rules to be included.
+
+# Requirement 1: Email must be present and valid
+Column[email] == Valid
+
+# Requirement 2: Phone must be valid (or empty is okay for this example)
+# Uncomment the line below to require valid phone numbers
+# Column[phone] == Valid
+
+# Requirement 3: First name must not be empty
+Column[first_name] == True
+
+# Requirement 4: Last name must not be empty
+Column[last_name] == True
