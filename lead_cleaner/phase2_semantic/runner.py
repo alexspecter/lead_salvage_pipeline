@@ -232,15 +232,14 @@ class Phase2Runner:
                             value is None 
                             or (isinstance(value, str) and (not value.strip() or value.strip().lower() == "not provided"))
                         )
-                        if is_useless:
+                        if is_useless and key_lower != 'phone':
                             continue # Keep Phase 1 value
 
                     # If this is a preserved field and Phase 1 already has a valid value, keep it
                     if key_lower in preserved_fields and key_lower in row["clean_data"]:
                         existing = row["clean_data"][key_lower]
-                        # Keep Phase 1's value if it looks normalized (has dashes for phone, @ for email)
-                        if key_lower == 'phone' and existing and '-' in str(existing):
-                            continue  # Keep Phase 1's formatted phone
+                        # Phone: AI is authority. Do not preserve Phase 1 phone.
+                        
                         if key_lower == 'email' and existing and '@' in str(existing):
                             continue  # Keep Phase 1's email
                     

@@ -186,6 +186,22 @@ class Phase3Runner:
         # 1. Define explicit priority list
         explicit_priority = [
             "row_id", 
+        ]
+        
+        # DYNAMIC ID PRIORITY: Find any column that looks like an ID and put it right after row_id
+        # Look for "id", "employee_id", "employee id", "user_id"
+        id_candidates = []
+        for col in df.columns:
+            c_low = col.lower().strip()
+            if c_low in ["id", "employee_id", "employee id", "user_id", "user id", "legacy_id"]:
+                id_candidates.append(col)
+                
+        # Sort candidates to be deterministic (shortest first, usually "id")
+        id_candidates.sort(key=len)
+        
+        explicit_priority.extend(id_candidates)
+        
+        explicit_priority.extend([
             "first_name", 
             "last_name", 
             "email", 
@@ -193,7 +209,7 @@ class Phase3Runner:
             "job_title", 
             "position", 
             "company"
-        ]
+        ])
         
         # 2. Identify remaining columns
         other_cols = []
@@ -282,6 +298,9 @@ class Phase3Runner:
                 if minimal_metadata: 
                     self.rejection_cache.add_column_rejection(col, f"Entirely empty or {MISSING_VALUE_PLACEHOLDER}")
         
+        if "_line_number" in df_ordered.columns:
+            cols_to_drop.append("_line_number")
+
         if cols_to_drop:
             df_ordered = df_ordered.drop(columns=cols_to_drop)
             

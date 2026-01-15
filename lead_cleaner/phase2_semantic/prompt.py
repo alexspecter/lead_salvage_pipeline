@@ -17,6 +17,11 @@ RULES:
     - Remove emojis (📈, 🥷) and buzzwords (Ninja, Visionary, Guru, Rock Star).
     - Multi-role format: Use " and " for two roles (e.g. "Sales and Marketing").
     - KEEP context phrases attached if they are part of the title (e.g. "King in the North", "Editor in Chief"). Do NOT extract notes.
+- PHONE:
+    - Standardize to "XXX-XXX-XXXX" or international "+X XXX XXX XXXX" if possible.
+    - If Extension ONLY (e.g. "Ext: 007"), return null.
+    - If Vanity Number (e.g. "555-MAG-IC00"), convert letters to standard keypad digits (A=2, B=2, C=2, ..., Z=9).
+    - If invalid/garbage, return null.
 - SCHEMA: Output using canonical keys: 'first_name', 'last_name', 'email', 'phone', 'company', 'job_title'.
 
 EXAMPLES:
@@ -26,6 +31,8 @@ EXAMPLES:
 - Input: "Founder & Visionary" -> {"job_title": "Founder"}
 - Input: "Robert \"Rob\" Stark" -> {"first_name": "Robert", "last_name": "Stark"}
 - Input: "Dr. Stephen Strange" -> {"first_name": "Stephen", "last_name": "Strange"}
+- Input: "555-MAG-IC00" -> {"phone": "555-624-4200"}
+- Input: "Ext: 007" -> {"phone": null}
 
 OUTPUT FORMAT: {"first_name": "...", "last_name": "...", "job_title": "..."}
 
