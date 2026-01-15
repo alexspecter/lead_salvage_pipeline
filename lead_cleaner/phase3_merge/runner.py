@@ -201,6 +201,9 @@ class Phase3Runner:
         
         explicit_priority.extend(id_candidates)
         
+        # Add 'name' field (for datasets with single name column instead of first/last)
+        explicit_priority.append("name")
+        
         explicit_priority.extend([
             "first_name", 
             "last_name", 

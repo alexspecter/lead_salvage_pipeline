@@ -19,6 +19,7 @@ RULES:
     - KEEP context phrases attached if they are part of the title (e.g. "King in the North", "Editor in Chief"). Do NOT extract notes.
 - PHONE:
     - Standardize to "XXX-XXX-XXXX" or international "+X XXX XXX XXXX" if possible.
+    - PRESERVE extensions: format as "XXX-XXX-XXXX xNNN" (e.g. "555-017-9982 x404").
     - If Extension ONLY (e.g. "Ext: 007"), return null.
     - If Vanity Number (e.g. "555-MAG-IC00"), convert letters to standard keypad digits (A=2, B=2, C=2, ..., Z=9).
     - If invalid/garbage, return null.

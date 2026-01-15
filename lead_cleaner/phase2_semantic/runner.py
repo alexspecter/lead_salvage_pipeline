@@ -238,7 +238,12 @@ class Phase2Runner:
                     # If this is a preserved field and Phase 1 already has a valid value, keep it
                     if key_lower in preserved_fields and key_lower in row["clean_data"]:
                         existing = row["clean_data"][key_lower]
-                        # Phone: AI is authority. Do not preserve Phase 1 phone.
+                        
+                        # Phone: Only overwrite if AI has a real value, not null/empty
+                        if key_lower == 'phone':
+                            ai_phone_empty = (value is None or (isinstance(value, str) and not value.strip()))
+                            if ai_phone_empty and existing:
+                                continue  # Keep Phase 1's phone (which is "Not Provided" or normalized)
                         
                         if key_lower == 'email' and existing and '@' in str(existing):
                             continue  # Keep Phase 1's email

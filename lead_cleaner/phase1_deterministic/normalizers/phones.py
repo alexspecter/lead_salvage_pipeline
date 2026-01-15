@@ -1,11 +1,12 @@
 from typing import Tuple, Optional
 import re
 from lead_cleaner.types import NormalizerResult
+from lead_cleaner.config import MISSING_VALUE_PLACEHOLDER
 
 def normalize_phone(value: Optional[str]) -> NormalizerResult:
     if not value:
         return {
-            "normalized_value": None,
+            "normalized_value": MISSING_VALUE_PLACEHOLDER,
             "field_status": "MISSING",
             "reason": "Empty value"
         }
@@ -43,10 +44,17 @@ def normalize_phone(value: Optional[str]) -> NormalizerResult:
         formatted = f"{digits[:3]}-{digits[4:]}" # Treat as local 555-0199 -> 555-0199
         # Actually 7 digit is usually 3-4 split
         formatted = f"{digits[:3]}-{digits[3:]}"
-    else:
-        # Invalid length
+    elif len(digits) == 0:
+        # No digits found - treat as missing value
         return {
-            "normalized_value": value,
+            "normalized_value": MISSING_VALUE_PLACEHOLDER,
+            "field_status": "MISSING",
+            "reason": "No phone digits found"
+        }
+    else:
+        # Invalid length (has digits but wrong count)
+        return {
+            "normalized_value": MISSING_VALUE_PLACEHOLDER,
             "field_status": "INVALID",
             "reason": f"Expected 7 or 10 digits, found {len(digits)}"
         }
