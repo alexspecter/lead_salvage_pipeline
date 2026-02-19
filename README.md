@@ -16,9 +16,16 @@ pip install -r requirements.txt
 
 ### 2. Run the Pipeline
 
+
 **CSV Cleaning:**
 ```bash
 python run_pipeline.py <input_csv> <output_directory>
+```
+
+**Health Check (Dry Run):**
+Assess data quality and predict AI usage without writing files:
+```bash
+python run_pipeline.py <input_csv> --health-check
 ```
 
 **Example:**
@@ -60,6 +67,12 @@ output/<your_output_dir>/
 **Logs:**
 ```
 logs/run_<run_id>.csv            # Full audit trail of all operations
+```
+
+### Quick Analysis
+To see a summary of your most recent run without opening CSVs:
+```bash
+python analyze_results.py --latest
 ```
 
 ---
