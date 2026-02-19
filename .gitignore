@@ -59,7 +59,7 @@ user_output/
 
 # User-specified exclusions (Meta/Docs/Data)
 AGENTS.md
-directives/
+directives/SECURITY_PROTOCOL.md
 SAMPLE DATA SETS/
 AI_AGENT_Task_file NEW.txt
 PIPELINE_USER_GUIDE.txt
