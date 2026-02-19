@@ -214,3 +214,10 @@ Edit `lead_cleaner/config.py`:
 ```python
 CHUNK_SIZE = 10  # Reduce if memory issues occur
 ```
+
+---
+
+## Security Features
+
+- **Sanitization**: Dangerous characters (`=`, `+`, `-`, `@`) at the start of cells are neutralized by prepending a single quote (`'`) to prevent formula injection attacks while preserving data.
+- **Malware Protection**: If malicious patterns (e.g., `=cmd|`) are detected, the file is immediately deleted, and the pipeline aborts to protect the system.
