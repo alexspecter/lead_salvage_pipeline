@@ -56,3 +56,10 @@ testcache/
 
 # User Output
 user_output/
+
+# User-specified exclusions (Meta/Docs/Data)
+AGENTS.md
+directives/
+SAMPLE DATA SETS/
+AI_AGENT_Task_file NEW.txt
+PIPELINE_USER_GUIDE.txt
