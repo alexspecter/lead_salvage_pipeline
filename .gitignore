@@ -49,6 +49,7 @@ input/*.csv
 .pytest_cache/
 .coverage
 htmlcov/
+testcache/
 
 # MLX model cache (if applicable)
 .cache/
