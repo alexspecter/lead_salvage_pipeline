@@ -63,3 +63,5 @@ directives/
 SAMPLE DATA SETS/
 AI_AGENT_Task_file NEW.txt
 PIPELINE_USER_GUIDE.txt
+.agent/
+input/
