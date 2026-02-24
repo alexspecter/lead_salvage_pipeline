@@ -28,7 +28,7 @@ from validate_leads.rules_parser import RulesParser
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Filter a CSV file against custom validation rules.',
+        description="Filter a CSV file against custom validation rules.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Rules File Syntax:
@@ -46,52 +46,55 @@ Example rules.txt:
   
   # Only keep leads who responded positively
   Column[interested] == "Yes" OR "Y" OR "Sure"
-"""
+""",
     )
-    
+
     parser.add_argument(
-        '--input', '-i',
+        "--input",
+        "-i",
         required=True,
-        help='Path to the input CSV file (typically the pipeline output)'
+        help="Path to the input CSV file (typically the pipeline output)",
     )
-    
+
     parser.add_argument(
-        '--rules', '-r',
+        "--rules",
+        "-r",
         required=True,
-        help='Path to the rules file containing validation criteria'
+        help="Path to the rules file containing validation criteria",
     )
-    
+
     parser.add_argument(
-        '--output', '-o',
+        "--output",
+        "-o",
         default=None,
-        help='Path for the output CSV (default: valid_leads.csv in same directory as input)'
+        help="Path for the output CSV (default: valid_leads.csv in same directory as input)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Validate input file
     if not os.path.exists(args.input):
         print(f"Error: Input file not found: {args.input}")
         sys.exit(1)
-    
+
     # Validate rules file
     if not os.path.exists(args.rules):
         print(f"Error: Rules file not found: {args.rules}")
         sys.exit(1)
-    
+
     # Determine output path
     if args.output:
         output_path = args.output
     else:
         input_dir = os.path.dirname(os.path.abspath(args.input))
-        output_path = os.path.join(input_dir, 'valid_leads.csv')
-    
-    print(f"=== Validate Leads Utility ===")
+        output_path = os.path.join(input_dir, "valid_leads.csv")
+
+    print("=== Validate Leads Utility ===")
     print(f"Input:  {args.input}")
     print(f"Rules:  {args.rules}")
     print(f"Output: {output_path}")
     print()
-    
+
     # Load CSV
     try:
         df = pd.read_csv(args.input)
@@ -101,28 +104,28 @@ Example rules.txt:
     except Exception as e:
         print(f"Error reading CSV: {e}")
         sys.exit(1)
-    
+
     # Parse and apply rules
     try:
         print("Parsing rules file...")
         rules_parser = RulesParser(args.rules)
         print(f"Found {len(rules_parser.rules)} rule(s).")
         print()
-        
+
         print("Applying rules...")
         filtered_df, messages = rules_parser.apply(df)
-        
+
         for msg in messages:
             print(msg)
         print()
-        
+
     except ValueError as e:
         print(f"Error parsing rules: {e}")
         sys.exit(1)
     except Exception as e:
         print(f"Error applying rules: {e}")
         sys.exit(1)
-    
+
     # Write output
     try:
         filtered_df.to_csv(output_path, index=False)
@@ -130,10 +133,10 @@ Example rules.txt:
     except Exception as e:
         print(f"Error writing output: {e}")
         sys.exit(1)
-    
+
     print()
     print("=== Done ===")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

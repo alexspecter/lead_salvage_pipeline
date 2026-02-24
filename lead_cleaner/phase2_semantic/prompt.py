@@ -1,6 +1,7 @@
 import json
 from typing import Dict, Any
 
+
 class PromptGenerator:
     @staticmethod
     def get_system_prompt() -> str:
@@ -44,5 +45,3 @@ IMPORTANT: Output the JSON object ONLY. Do not repeat the input. Do not start a 
     def format_row(row_data: Dict[str, Any]) -> str:
         return f"""Input: {json.dumps(row_data)}
 Output:"""
-
-

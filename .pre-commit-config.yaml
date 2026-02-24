@@ -1,30 +1,34 @@
 repos:
-  # 1. Ruff (Linter & Formatter)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.0
-    hooks:
-      - id: ruff
-        args: [ --fix ]
-      - id: ruff-format
-
-  # 2. Gitleaks (Secret Detection)
-  - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.21.2
-    hooks:
-      - id: gitleaks
-
-  # 3. Trivy (Dependency/Filesystem Scanner)
-  - repo: https://github.com/aquasecurity/trivy
-    rev: 0.59.1
-    hooks:
-      - id: trivy-fs
-        args: ["--scanners", "vuln", "--exit-code", "1"]
-
-  # 4. Semgrep (Linked to your global Homebrew install for Pro Engine)
   - repo: local
     hooks:
-      - id: semgrep-local
+      - id: ruff-check
+        name: Ruff Linter
+        entry: ruff check --fix
+        language: system
+        types: [python]
+        require_serial: true
+
+      - id: ruff-format
+        name: Ruff Formatter
+        entry: ruff format
+        language: system
+        types: [python]
+        require_serial: true
+
+      - id: gitleaks
+        name: Gitleaks
+        entry: gitleaks protect --verbose --staged
+        language: system
+        pass_filenames: false
+
+      - id: trivy-fs
+        name: Trivy Filesystem Scan
+        entry: trivy fs --scanners vuln --severity HIGH,CRITICAL --exit-code 1 .
+        language: system
+        pass_filenames: false
+
+      - id: semgrep
         name: Semgrep Pro Engine
-        entry: semgrep ci
+        entry: semgrep scan --config auto --error
         language: system
         pass_filenames: false

@@ -9,21 +9,30 @@ except ImportError:
 from lead_cleaner.logging.logger import PipelineLogger
 from lead_cleaner.config import ENABLE_LLM
 
+
 class LocalLLM:
-    def __init__(self, logger: PipelineLogger, model_path: str = "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"):
+    def __init__(
+        self,
+        logger: PipelineLogger,
+        model_path: str = "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
+    ):
         self.logger = logger
         self.model_path = model_path
         self.model = None
         self.tokenizer = None
-        
+
     def load_model(self):
         if not ENABLE_LLM:
-            self.logger.log_event("PHASE_2", "MODEL_SKIP", reason="LLM Disabled in Config")
+            self.logger.log_event(
+                "PHASE_2", "MODEL_SKIP", reason="LLM Disabled in Config"
+            )
             return
 
         if load is None:
-             self.logger.log_error("PHASE_2", "Import Error", Exception("mlx_lm not installed"))
-             return
+            self.logger.log_error(
+                "PHASE_2", "Import Error", Exception("mlx_lm not installed")
+            )
+            return
 
         self.logger.log_event("PHASE_2", "MODEL_LOAD_START", reason=self.model_path)
         try:
@@ -36,21 +45,20 @@ class LocalLLM:
 
     def generate_response(self, prompt: str) -> str:
         if not self.model:
-            return "{}" # Fail safe
-        
+            return "{}"  # Fail safe
+
         # Create sampler for near-deterministic output (temp=0.1)
         sampler = make_sampler(temp=0.1)
-        
+
         # Note: stop strings not supported in current mlx_lm version
         # Rely on max_tokens to limit generation
-            
+
         response = generate(
-            self.model, 
-            self.tokenizer, 
-            prompt=prompt, 
-            verbose=False, 
+            self.model,
+            self.tokenizer,
+            prompt=prompt,
+            verbose=False,
             max_tokens=150,
-            sampler=sampler
+            sampler=sampler,
         )
         return response
-

@@ -1,5 +1,3 @@
-import os
-
 # System Constraints
 MEMORY_CAP_PERCENT = 0.95
 FORCE_GC_COLLECT = True
@@ -12,7 +10,9 @@ CONFIDENCE_THRESHOLD = 0.7
 # Options
 ENABLE_LLM = True
 DRY_RUN = False
-ENABLE_GENERIC_MODE = False  # Allows datasets without Email/Phone to be marked CLEAN if valid
+ENABLE_GENERIC_MODE = (
+    False  # Allows datasets without Email/Phone to be marked CLEAN if valid
+)
 
 # Paths (Relative to execution root)
 DEFAULT_INPUT_DIR = "input"
@@ -27,8 +27,23 @@ MISSING_VALUE_PLACEHOLDER = "Not Provided"
 
 # Values that indicate missing data (case-insensitive matching applied)
 MISSING_VALUE_INDICATORS = {
-    "", "N/A", "NA", "n/a", "na", "null", "NULL", "None", "none", 
-    "-", "?", "missing", "unknown", "MISSING", "UNKNOWN", "NaN", "nan"
+    "",
+    "N/A",
+    "NA",
+    "n/a",
+    "na",
+    "null",
+    "NULL",
+    "None",
+    "none",
+    "-",
+    "?",
+    "missing",
+    "unknown",
+    "MISSING",
+    "UNKNOWN",
+    "NaN",
+    "nan",
 }
 
 # Values that indicate missing data (case-insensitive matching applied)
@@ -66,9 +81,23 @@ ALLOWED_FILE_EXTENSIONS = {".csv", ".docx", ".db"}
 
 # Hazardous file extensions (blacklist) - these will be deleted on sight
 HAZARDOUS_FILE_EXTENSIONS = {
-    ".exe", ".bat", ".sh", ".cmd", ".com", ".msi", ".scr",
-    ".js", ".vbs", ".wsf", ".ps1", ".jar", ".py", ".rb",
-    ".dll", ".so", ".dylib"
+    ".exe",
+    ".bat",
+    ".sh",
+    ".cmd",
+    ".com",
+    ".msi",
+    ".scr",
+    ".js",
+    ".vbs",
+    ".wsf",
+    ".ps1",
+    ".jar",
+    ".py",
+    ".rb",
+    ".dll",
+    ".so",
+    ".dylib",
 }
 
 # Known malicious file hashes (SHA256) - local blocklist
@@ -106,19 +135,16 @@ MALWARE_PATTERNS = {
     b"MZ": "Windows executable (PE)",
     b"\x7fELF": "Linux executable (ELF)",
     b"#!": "Shebang script",
-    
     # Dangerous script patterns (as bytes for binary scanning)
     b"powershell": "PowerShell command",
     b"Invoke-Expression": "PowerShell code execution",
     b"WScript.Shell": "Windows Script Host",
     b"cmd.exe": "Windows command shell",
-    
     # Web-based threats
     b"<script": "Embedded JavaScript",
     b"javascript:": "JavaScript URL",
     b"data:text/html": "Data URL with HTML",
     b"vbscript:": "VBScript URL",
-    
     # SQL injection indicators
     b"DROP TABLE": "SQL DROP statement",
     b"DELETE FROM": "SQL DELETE statement",
@@ -138,8 +164,8 @@ DANGEROUS_TEXT_PATTERNS = [
 # Files that indicate macros in DOCX (should not exist in safe documents)
 DOCX_DANGEROUS_COMPONENTS = {
     "vbaProject.bin",  # VBA macro storage
-    "vbaData.xml",     # VBA data
-    ".vbs",            # VBScript files
-    ".js",             # JavaScript files
-    "oleObject",       # Embedded OLE objects
+    "vbaData.xml",  # VBA data
+    ".vbs",  # VBScript files
+    ".js",  # JavaScript files
+    "oleObject",  # Embedded OLE objects
 }

@@ -2,13 +2,14 @@
 DOCX Cleaning Prompt Generator
 Generates prompts for the LLM to clean document content.
 """
+
 import json
 from typing import List, Dict
 
 
 class DocxPromptGenerator:
     """Generates prompts for cleaning DOCX content."""
-    
+
     @staticmethod
     def get_system_prompt() -> str:
         return """You are a document cleaning assistant. Your task is to clean and normalize messy text content from business documents.
@@ -38,7 +39,7 @@ Return ONLY valid JSON. No explanations, no markdown."""
         for block in blocks:
             prompt += f"[ID: {block['id']}] {block['text']}\n"
         return prompt
-    
+
     @staticmethod
     def parse_response(response: str, original_blocks: List[Dict]) -> List[Dict]:
         """Parse LLM response and merge with original blocks."""
@@ -47,32 +48,37 @@ Return ONLY valid JSON. No explanations, no markdown."""
             # Handle markdown code blocks
             if "```" in response:
                 import re
-                json_match = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", response, re.DOTALL)
+
+                json_match = re.search(
+                    r"```(?:json)?\s*(\[.*?\])\s*```", response, re.DOTALL
+                )
                 if json_match:
                     response = json_match.group(1)
-            
+
             # Find array bounds
             start = response.find("[")
             end = response.rfind("]")
             if start != -1 and end != -1:
-                response = response[start:end+1]
-            
+                response = response[start : end + 1]
+
             cleaned_data = json.loads(response)
-            
+
             # Build lookup
             cleaned_lookup = {item["id"]: item["cleaned"] for item in cleaned_data}
-            
+
             # Merge with original
             result = []
             for block in original_blocks:
-                result.append({
-                    "id": block["id"],
-                    "original": block["text"],
-                    "cleaned": cleaned_lookup.get(block["id"], block["text"])
-                })
-            
+                result.append(
+                    {
+                        "id": block["id"],
+                        "original": block["text"],
+                        "cleaned": cleaned_lookup.get(block["id"], block["text"]),
+                    }
+                )
+
             return result
-            
+
         except json.JSONDecodeError:
             # If parsing fails, return originals unchanged
             return [
