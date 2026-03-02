@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+.ruff_cache/
 *.py[cod]
 *$py.class
 *.so
@@ -60,7 +61,7 @@ user_output/
 
 # User-specified exclusions (Meta/Docs/Data)
 AGENTS.md
-directives/SECURITY_PROTOCOL.md
+directives/
 SAMPLE DATA SETS/
 AI_AGENT_Task_file NEW.txt
 PIPELINE_USER_GUIDE.txt

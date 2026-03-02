@@ -1,223 +1,146 @@
 # Lead Cleaner Pipeline
 
-A deterministic data cleaning pipeline with an LLM fallback.
-See `directives/00_primary_directive.md` for full specifications.
-# Lead Cleaner Pipeline - User Guide
+[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-## Quick Start
+A robust, enterprise-grade deterministic data cleaning pipeline with an integrated LLM fallback for semantic processing. Designed for high reliability, memory safety, and seamless extraction of critical business leads.
 
-### 1. Install Dependencies
+---
+
+## ⚡ Features
+
+- **Deterministic Base Cleaning:** Normalizes and dedupes high-confidence leads instantly (emails, phone numbers, names, formats).
+- **LLM Semantic Fallback:** For complex unstructured records, routes data to a powerful Llama-based local MLX model to synthetically clean records.
+- **Strict Memory Safety:** Implements a 95% RAM usage ceiling, forcing garbage collection across chunks to prevent out-of-memory crashes even on massive jobs.
+- **Enterprise Security:** Built-in sanitization blocks formula injection attacks in CSVs (`=`, `+`, `-`, `@`) and destroys immediate malware signatures like `=cmd|`.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Installation
+
+Requires Python 3.9+. It is highly recommended to use a virtual environment.
+
 ```bash
+# Clone the repository
+git clone https://github.com/your-org/data_cleaning_pipeline.git
 cd data_cleaning_pipeline
+
+# Create and activate virtual environment
 python3 -m venv venv
 source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Run the Pipeline
+### 2. Usage
 
-
-**CSV Cleaning:**
+**CSV Cleaning (Standard Run)**
 ```bash
 python run_pipeline.py <input_csv> <output_directory>
+
+# Example
+python run_pipeline.py input/leads.csv output/cleaned_run
 ```
 
-**Health Check (Dry Run):**
-Assess data quality and predict AI usage without writing files:
+**Health Check (Dry Run)**
+Assess data quality and predict AI consumption requirements without writing outputs:
 ```bash
 python run_pipeline.py <input_csv> --health-check
 ```
 
-**Example:**
-```bash
-python run_pipeline.py input/leads.csv output/cleaned_run
-```
-
-**DOCX Cleaning:**
+**DOCX Cleaning**
+Extract and clean targets from unstructured Word documents:
 ```bash
 python -m lead_cleaner.docx_cleaner.runner <input.docx> [output.docx]
 ```
 
----
+### 3. Review Results
 
-## Input Requirements
-
-### CSV Format
-Your CSV must contain at least one of these columns:
-- `email`
-- `phone`
-
-Optional columns: `first_name`, `last_name`, `job_title`, `company`, `date`
-
-### DOCX Format
-Any valid `.docx` file with text content.
-
----
-
-## Output Locations
-
-After running, find your outputs in the specified output directory:
-
-```
-output/<your_output_dir>/
-├── final_output_<run_id>.csv    # Successfully cleaned rows
-├── reject_store_<run_id>.csv    # Rows that could not be cleaned
-```
-
-**Logs:**
-```
-logs/run_<run_id>.csv            # Full audit trail of all operations
-```
-
-### Quick Analysis
-To see a summary of your most recent run without opening CSVs:
+Quick audit for the most recent pipeline execution:
 ```bash
 python analyze_results.py --latest
 ```
 
+Outputs will be securely deposited in your designated output path:
+- `output/<dir>/final_output_<run_id>.csv` (Cleaned results)
+- `output/<dir>/reject_store_<run_id>.csv` (Irrecoverable records)
+- `logs/run_<run_id>.csv` (Trace audit of all structural changes)
+
 ---
 
-## Data Flow Diagram
+## 📋 Input Specifications
 
-```
+**CSV format** must contain at least one primary unqiue identifier:
+- `email`
+- `phone`
+
+*Optional auxiliary columns*: `first_name`, `last_name`, `job_title`, `company`, `date`. The pipeline will automatically lowercase and strip column spaces.
+
+**DOCX format** can be any valid `.docx` text file containing potential leads.
+
+---
+
+## 🧠 Architecture Data Flow
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           LEAD CLEANER PIPELINE                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-                              ┌──────────────┐
-                              │  INPUT CSV   │
-                              └──────┬───────┘
-                                     │
-                                     ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  PHASE 0: VALIDATION                                                        │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  • Validate file exists and is readable                              │   │
-│  │  • Check required columns (email OR phone)                           │   │
-│  │  • Normalize headers (lowercase, strip spaces)                       │   │
-│  │  • Generate unique run_id                                            │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└────────────────────────────────────┬────────────────────────────────────────┘
-                                     │
-                                     ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  PHASE 1: DETERMINISTIC CLEANING                                            │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  For each row:                                                        │   │
-│  │  1. Assign unique row_id (UUID)                                       │   │
-│  │  2. Normalize fields using deterministic rules:                       │   │
-│  │     • Emails → lowercase, validate format                            │   │
-│  │     • Phones → extract digits, format consistently                   │   │
-│  │     • Names → proper case, trim whitespace                           │   │
-│  │     • Dates → standardize to YYYY-MM-DD                              │   │
-│  │     • Job Titles → expand abbreviations, proper case                 │   │
-│  │  3. Generate fingerprint (email|phone)                                │   │
-│  │  4. Detect duplicates by fingerprint                                  │   │
-│  │  5. Calculate confidence score (0.0 - 1.0)                            │   │
-│  │  6. Route row based on score and validation                           │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-│                          ┌──────────────────┐                               │
-│                          │  ROUTE DECISION  │                               │
-│                          └────────┬─────────┘                               │
-│                    ┌──────────────┼──────────────┐                          │
-│                    ▼              ▼              ▼                          │
-│              ┌─────────┐   ┌───────────┐  ┌──────────┐                      │
-│              │  CLEAN  │   │ AI_REQUIRED│  │ REJECTED │                      │
-│              │ (≥0.7)  │   │  (<0.7)   │  │(Duplicate)│                      │
-│              └────┬────┘   └─────┬─────┘  └─────┬────┘                      │
-│                   │              │              │                            │
-└───────────────────┼──────────────┼──────────────┼───────────────────────────┘
-                    │              │              │
-                    │              ▼              │
-                    │   ┌─────────────────────┐   │
-                    │   │  *** CRITICAL GATE ***│   │
-                    │   │  Run Phase 1 Tests  │   │
-                    │   │  If FAIL → ABORT    │   │
-                    │   └──────────┬──────────┘   │
-                    │              │              │
-                    │              ▼              │
-┌───────────────────┼─────────────────────────────┼───────────────────────────┐
-│  PHASE 2: SEMANTIC CLEANING (LLM)              │                            │
-│                    │              │              │                            │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  • Check memory (abort if >95%)                                      │   │
-│  │  • Load Llama 3.1 70B model via MLX                                  │   │
-│  │  • Process AI_REQUIRED rows in chunks                                │   │
-│  │  • For each row:                                                      │   │
-│  │    - Generate cleaning prompt                                        │   │
-│  │    - Send to LLM (temperature=0)                                     │   │
-│  │    - Parse JSON response                                             │   │
-│  │    - Update clean_data                                               │   │
-│  │  • Force garbage collection after each chunk                         │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                    │              │              │                            │
-│                    │              ▼              │                            │
-│                    │      ┌───────────────┐      │                            │
-│                    │      │ CLEAN (fixed) │      │                            │
-│                    │      └───────┬───────┘      │                            │
-│                    │              │              │                            │
-└────────────────────┼──────────────┼──────────────┼──────────────────────────┘
-                     │              │              │
-                     ▼              ▼              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  PHASE 3: MERGE & VERIFY                                                     │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  1. Merge all CLEAN rows → final_output.csv                          │   │
-│  │  2. Merge all REJECTED rows → reject_store.csv                       │   │
-│  │  3. Verify:                                                           │   │
-│  │     • input_count == final_count + reject_count                      │   │
-│  │     • No row_id in both outputs                                       │   │
-│  │     • Every original row accounted for exactly once                  │   │
-│  │  4. If verification fails → DO NOT write outputs                     │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                     │
-                     ┌───────────────┴───────────────┐
-                     ▼                               ▼
-           ┌─────────────────┐             ┌─────────────────┐
-           │ final_output.csv│             │reject_store.csv │
-           │  (Clean leads)  │             │ (Failed leads)  │
-           └─────────────────┘             └─────────────────┘
+                                   ┌──────────────┐
+                                   │  INPUT CSV   │
+                                   └──────┬───────┘
+                                          │
+    ┌─────────────────────────────────────▼─────────────────────────────────────┐
+    │  PHASE 0: VALIDATION                                                      │
+    │  • Verify file health, unroll headers, define UUIDs                       │
+    └─────────────────────────────────────┬─────────────────────────────────────┘
+                                          │
+    ┌─────────────────────────────────────▼─────────────────────────────────────┐
+    │  PHASE 1: DETERMINISTIC FAST-PASS                                         │
+    │  • Email/Phone regex extraction, Proper-case Normalization                │
+    │  • Cross-row Fingerprinting for duplicate isolation                       │
+    │  • Calculate confidence score (0.0 to 1.0)                                │
+    └─────────────────────────────────────┬─────────────────────────────────────┘
+                                          │
+                  ┌───────────────────────┼──────────────────────┐
+            [ ≥0.7 Score ]          [ <0.7 Score ]        [ Duplicates ]
+                  │                       │                      │
+                  ▼                       ▼                      ▼
+            ┌─────────┐             ┌────────────┐         ┌──────────┐
+            │  CLEAN  │             │ AI_REQUIRED│         │ REJECTED │
+            └────┬────┘             └─────┬──────┘         └─────┬────┘
+                 │                        │                      │
+                 │          ┌─────────────▼──────────────┐       │
+                 │          │  PHASE 2: SEMANTIC LLM     │       │
+                 │          │  • Chunked LLM Parsing     │       │
+                 │          │  • Temperature=0, GC-safe  │       │
+                 │          └─────────────┬──────────────┘       │
+                 │                        │                      │
+                 ▼                        ▼                      ▼
+    ┌───────────────────────────────────────────────────────────────────────────┐
+    │  PHASE 3: MERGE & VERIFY                                                  │
+    │  • Stitch processed records, map back row limits, assert invariants       │
+    └───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Row Status Meanings
+## 🛡️ Operational Safety
 
-| Status | Meaning |
-|:---|:---|
-| `CLEAN` | Row passed all cleaning steps |
-| `AI_REQUIRED` | Row needs LLM processing (intermediate) |
-| `REJECTED` | Row failed cleaning (duplicate, invalid, or LLM failure) |
+### Hardened Execution
+- **Out of Memory Resistance:** In the event memory usage exceeds the 95% threshold `lead_cleaner/config.py:CHUNK_SIZE`, execution is gracefully suspended—securing the current chunk before closing.
+- **Deterministic Bounds:** Input counts *strictly* equal terminal output bounds (`clean` + `rejected`). Missing or dropped pointers will invalidate the build internally, shielding against silently lost data.
 
-## Failure Reasons
-
-| Reason | Meaning |
-|:---|:---|
-| `DUPLICATE` | Row is a duplicate of another |
-| `INVALID_FORMAT` | LLM returned invalid JSON |
-| `MODEL_CRASH` | LLM failed to process |
-| `UNKNOWN` | Unexpected error |
-
----
-
-## Memory Safety
-
-The pipeline enforces a **95% RAM limit**. If memory usage exceeds this threshold:
-1. The process will **abort safely**
-2. Current progress is logged
-3. You can resume by re-running with the same input
-
-### Adjusting Chunk Size
-Edit `lead_cleaner/config.py`:
-```python
-CHUNK_SIZE = 10  # Reduce if memory issues occur
-```
-
----
-
-## Security Features
-
-- **Sanitization**: Dangerous characters (`=`, `+`, `-`, `@`) at the start of cells are neutralized by prepending a single quote (`'`) to prevent formula injection attacks while preserving data.
-- **Malware Protection**: If malicious patterns (e.g., `=cmd|`) are detected, the file is immediately deleted, and the pipeline aborts to protect the system.
+### Troubleshooting Codes
+| State | Cause |
+|-------|-------|
+| `AI_REQUIRED` | Initial deterministic sweep fell below 70% confidence index. Sent to model. |
+| `INVALID_FORMAT` | LLM synthetic generation failed strict JSON spec mapping. |
+| `MODEL_CRASH` | Interrupted memory limit during inference. |
+| `DUPLICATE` | Deduplication flagged against primary signature. |
+| `UNKNOWN` | Fatal runtime exception. |
