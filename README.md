@@ -1,4 +1,4 @@
-# Lead Cleaner Pipeline
+# Lead Salvage Pipeline
 
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -69,6 +69,33 @@ Outputs will be securely deposited in your designated output path:
 - `output/<dir>/final_output_<run_id>.csv` (Cleaned results)
 - `output/<dir>/reject_store_<run_id>.csv` (Irrecoverable records)
 - `logs/run_<run_id>.csv` (Trace audit of all structural changes)
+
+### 4. Post-Pipeline Validation
+
+You can filter the cleaned output against custom business rules using the `validate_leads` utility.
+This tool uses a simple, human-readable syntax to enforce data quality requirements.
+
+**Validation Syntax:**
+Rule files use "Easy Syntax" (`rules.txt`):
+```text
+# Require specific fields to be present and valid
+Column[email] == Valid
+Column[phone] == Valid
+
+# Exact matches and OR conditions
+Column[Status] == "Active"
+Column[Response] == "Yes" OR "Y"
+
+# Truthy check (must not be empty)
+Column[first_name] == True
+```
+
+**Usage:**
+Filter your pipeline output to isolate only leads that meet your strict criteria:
+```bash
+python validate_leads/validate_leads.py --input output/cleaned_run/final_output_<run_id>.csv --rules validate_leads/sample_rules.txt
+```
+This will output `valid_leads.csv` in the same directory as the input file, containing only records that passed all specified rules.
 
 ---
 
