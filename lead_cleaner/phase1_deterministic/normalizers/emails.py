@@ -1,6 +1,7 @@
 from typing import Optional
 import re
 from lead_cleaner.types import NormalizerResult
+from lead_cleaner.utils.text import strip_emojis
 
 
 def normalize_email(value: Optional[str]) -> NormalizerResult:
@@ -12,7 +13,8 @@ def normalize_email(value: Optional[str]) -> NormalizerResult:
         }
 
     # Basic cleaning
-    cleaned = value.strip().lower()
+    cleaned = strip_emojis(value)
+    cleaned = cleaned.strip().lower()
 
     # Remove common garbage chars
     cleaned = re.sub(r"[\s\t\n]+", "", cleaned)

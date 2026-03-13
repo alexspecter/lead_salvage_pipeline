@@ -1,7 +1,7 @@
 import re
 from typing import Optional
 from lead_cleaner.types import NormalizerResult
-from lead_cleaner.utils.text import clean_whitespace
+from lead_cleaner.utils.text import clean_whitespace, strip_emojis
 from lead_cleaner.constants import PROFESSIONAL_ACRONYMS
 
 # Words that should remain lowercase in titles (unless first word)
@@ -30,7 +30,8 @@ def normalize_job_title(value: Optional[str]) -> NormalizerResult:
             "reason": "Empty value",
         }
 
-    cleaned = clean_whitespace(str(value))
+    cleaned = strip_emojis(str(value))
+    cleaned = clean_whitespace(cleaned)
 
     # Proper title casing: capitalize first letter of each word, but keep certain words lowercase
     words = cleaned.split()

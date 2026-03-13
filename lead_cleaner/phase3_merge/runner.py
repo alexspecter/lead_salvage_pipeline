@@ -207,6 +207,16 @@ class Phase3Runner:
 
         df = pd.DataFrame(flat_data)
 
+        # INTEGER DTYPE PRESERVATION:
+        # Pandas converts integer columns to float64 when NaN values are present.
+        # Detect columns where all non-null values are whole numbers and convert
+        # to nullable Int64 so CSV output shows "1" instead of "1.0".
+        for col in df.columns:
+            if df[col].dtype in ("float64", "float32"):
+                non_null = df[col].dropna()
+                if not non_null.empty and (non_null == non_null.astype(int)).all():
+                    df[col] = df[col].astype("Int64")
+
         # Sort by original input order
         if "_sorting_index" in df.columns:
             df = df.sort_values("_sorting_index")

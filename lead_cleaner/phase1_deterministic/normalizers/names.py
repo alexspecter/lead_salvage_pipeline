@@ -1,7 +1,7 @@
 from typing import Optional
 import re
 from lead_cleaner.types import NormalizerResult
-from lead_cleaner.utils.text import clean_whitespace
+from lead_cleaner.utils.text import clean_whitespace, strip_emojis
 
 # Common honorifics to strip from names
 HONORIFICS = [
@@ -23,7 +23,7 @@ def normalize_name(value: Optional[str], field_name: str = "name") -> Normalizer
             "reason": "Empty value",
         }
 
-    s = str(value)
+    s = strip_emojis(str(value))
 
     # Strip whitespace
     cleaned = clean_whitespace(s)

@@ -1,5 +1,10 @@
 import unittest
-from lead_cleaner.phase1_deterministic.normalizers import emails, phones, names
+from lead_cleaner.phase1_deterministic.normalizers import (
+    emails,
+    phones,
+    names,
+    job_titles,
+)
 from lead_cleaner.phase1_deterministic.deduplication import detect_duplicates
 from lead_cleaner.logging.logger import PipelineLogger
 from lead_cleaner.types import RowStatus, FailureReason
@@ -19,6 +24,11 @@ class TestNormalizers(unittest.TestCase):
         # Empty
         self.assertEqual(emails.normalize_email(None)["field_status"], "MISSING")
 
+    def test_email_emoji_strip(self):
+        result = emails.normalize_email("Bob.Doe@yahoo.com 🔥")
+        self.assertEqual(result["normalized_value"], "bob.doe@yahoo.com")
+        self.assertEqual(result["field_status"], "VALID")
+
     def test_phone_normalizer(self):
         # Clean 10 digit
         self.assertEqual(
@@ -31,11 +41,30 @@ class TestNormalizers(unittest.TestCase):
         # Invalid
         self.assertEqual(phones.normalize_phone("123")["field_status"], "INVALID")
 
+    def test_phone_emoji_strip(self):
+        result = phones.normalize_phone("🔥5551234567")
+        self.assertEqual(result["normalized_value"], "555-123-4567")
+        self.assertEqual(result["field_status"], "VALID")
+
     def test_name_normalizer(self):
         self.assertEqual(
             names.normalize_name("  john doe  ")["normalized_value"], "John Doe"
         )
         self.assertIsNone(names.normalize_name("")["normalized_value"])
+
+    def test_name_emoji_strip(self):
+        result = names.normalize_name("Alice 🔥")
+        self.assertEqual(result["normalized_value"], "Alice")
+        self.assertEqual(result["field_status"], "VALID")
+
+    def test_job_title_emoji_strip(self):
+        result = job_titles.normalize_job_title("Director 🔥")
+        self.assertEqual(result["normalized_value"], "Director")
+        self.assertEqual(result["field_status"], "VALID")
+
+        result2 = job_titles.normalize_job_title("CEO🔥")
+        self.assertEqual(result2["normalized_value"], "CEO")
+        self.assertEqual(result2["field_status"], "VALID")
 
 
 class TestDeduplication(unittest.TestCase):

@@ -19,6 +19,7 @@ from lead_cleaner.config import (
     MISSING_VALUE_PLACEHOLDER,
     MISSING_VALUE_INDICATORS,
 )
+from lead_cleaner.utils.text import strip_emojis
 from lead_cleaner.constants import (
     PLACEHOLDER_ELIGIBLE_FIELDS,
     NUMERIC_FIELDS,
@@ -96,10 +97,10 @@ def handle_missing(
     # 1. Check if missing
     missing = is_missing(value)
 
-    # 2. If NOT missing, return original (but strip security quotes)
+    # 2. If NOT missing, return original (but strip security quotes and emojis)
     if not missing:
         if isinstance(value, str):
-            val = value.strip()
+            val = strip_emojis(value).strip()
             # Strip security quote if present
             if val.startswith("'") and len(val) > 1:
                 val = val[1:].strip()

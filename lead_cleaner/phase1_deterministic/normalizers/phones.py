@@ -2,6 +2,7 @@ from typing import Optional
 import re
 from lead_cleaner.types import NormalizerResult
 from lead_cleaner.config import MISSING_VALUE_PLACEHOLDER
+from lead_cleaner.utils.text import strip_emojis
 
 
 def normalize_phone(value: Optional[str]) -> NormalizerResult:
@@ -12,7 +13,7 @@ def normalize_phone(value: Optional[str]) -> NormalizerResult:
             "reason": "Empty value",
         }
 
-    s = str(value).strip()
+    s = strip_emojis(str(value)).strip()
 
     # Strip leading quotes/apostrophes (common Excel artifact)
     s = s.lstrip("'\"")
