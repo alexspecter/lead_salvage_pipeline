@@ -25,8 +25,8 @@ Requires Python 3.9+. It is highly recommended to use a virtual environment.
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/data_cleaning_pipeline.git
-cd data_cleaning_pipeline
+git clone https://github.com/alexspecter/lead_salvage_pipeline.git
+cd lead_salvage_pipeline
 
 # Create and activate virtual environment
 python3 -m venv venv
