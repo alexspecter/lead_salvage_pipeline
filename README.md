@@ -4,6 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
+[Video Demo](https://youtu.be/e6v5YD-uT0E)
+
 A robust, enterprise-grade deterministic data cleaning pipeline with an integrated LLM fallback for semantic processing. Designed for high reliability, memory safety, and seamless extraction of critical business leads.
 
 ---
